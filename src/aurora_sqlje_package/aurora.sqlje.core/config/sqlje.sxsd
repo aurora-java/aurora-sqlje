@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ss:schema xmlns:p="uncertain.proc" xmlns:ss="http://www.uncertain-framework.org/schema/simple-schema" xmlns:e="aurora.sqlje.core">
+    <ss:elements>
+        <ss:element name="e:sqlje-invoke" document="调用一个SQLJE规范的JAVA程序">
+            <ss:extensions>
+                <ss:extension base="p:AbstractAction"/>
+            </ss:extensions>
+            <ss:attributes>
+                <ss:attribute name="method" document="指定调用的方法,其参数类型为CompositeMap"/>
+            </ss:attributes>
+        </ss:element>
+    </ss:elements>
+</ss:schema>
