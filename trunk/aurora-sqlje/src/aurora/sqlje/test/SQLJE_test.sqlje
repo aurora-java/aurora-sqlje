@@ -1,0 +1,23 @@
+package aurora.sqlje.test;
+
+import uncertain.composite.CompositeMap;
+
+public class SQLJE_test {
+	public void hello(CompositeMap param) throws Exception {
+		for(CompositeMap m:#{select * from sys_user}) {
+			System.out.println("Hello "+m.getString("user_name")+" "+m.getInt("user_id"));
+			param.createChild("record").put("user_name", m.get("user_name"));
+		}
+	}
+
+	@Autonomous
+	public int  aaa() throws Exception {
+		try {
+			#{select sysdate from dual};
+		}catch(Exception e) {
+			throw e;
+		}
+		return 1;
+		
+	}
+}
