@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.ToolFactory;
 import org.eclipse.jdt.core.compiler.IProblem;
 import org.eclipse.jdt.core.dom.AST;
@@ -91,15 +92,22 @@ public class AstTransform {
 
 	public String tranform() throws Exception {
 		CompilationUnit result = createCompilationUnit();
-//		Document doc = new Document(parsedSource.getBuffer().toString());
-		// result.get
-		// ASTRewrite rewrite = ASTRewrite.create(result.getAST());
-		// addComment(result, rewrite);
-		// TextEdit edits = rewrite.rewriteAST();
-//		TextEdit edits = result.rewrite(doc, null);
-//		edits.apply(doc);
-//		String sourceCode = doc.get();
-		// return sourceCode;
+
+		String sourceToFormat = result.toString();
+		Map options = JavaCore.getOptions();
+		JavaCore.setComplianceOptions(JavaCore.VERSION_1_6, options);
+		CodeFormatter formatter = ToolFactory.createCodeFormatter(options);
+		Document doc = new Document(sourceToFormat);
+		TextEdit edit = formatter.format(CodeFormatter.F_INCLUDE_COMMENTS
+				| CodeFormatter.K_COMPILATION_UNIT, sourceToFormat, 0,
+				sourceToFormat.length(), 0, "\n");
+		if (edit != null) {
+			edit.apply(doc);
+			return doc.get();
+		} else {
+			System.out.println("Can't format source.");
+		}
+
 		return result.toString();
 	}
 
@@ -271,11 +279,9 @@ public class AstTransform {
 				 * String name = #{select name from ...};
 				 */
 				VariableDeclarationStatement vds = (VariableDeclarationStatement) s;
-				String src = String.format(
-						"DataTransfer.transfer1(%s.class,%s)", vds.getType()
-								.toString(), rs_id);
-				Expression exp = createAST(src.toCharArray(),
-						ASTParser.K_EXPRESSION);
+				// DataTransfer.transfer1
+				Expression exp = ASTNodeUtil.createDataTransferExpression(ast,
+						vds.getType().toString(), rs_id);
 				mi.getParent().setStructuralProperty(loc,
 						ASTNode.copySubtree(ast, exp));
 			} else if (loc.getNodeClass() == Assignment.class
@@ -291,11 +297,10 @@ public class AstTransform {
 					String varType = parsedSource.getVariableType(left
 							.toString());
 					if (varType != null) {
-						String src = String.format(
-								"DataTransfer.transfer1(%s.class,%s)", varType,
-								rs_id);
-						Expression exp = createAST(src.toCharArray(),
-								ASTParser.K_EXPRESSION);
+						// DataTransfer.transfer1
+						Expression exp = ASTNodeUtil
+								.createDataTransferExpression(ast, varType,
+										rs_id);
 						assi.setRightHandSide((Expression) ASTNode.copySubtree(
 								ast, exp));
 					}
@@ -448,6 +453,8 @@ public class AstTransform {
 
 		Expression sqlExpression = createSqlLiteralStatements(ast, parsedSql,
 				generated_statements);
+		// PreparedStatement ps =
+		// getSqlCallStack().getCurrentConnection().preparedStatement(sql);
 		VariableDeclarationStatement vds = newVariableDeclarationStatement(
 				ast,
 				stmt_type,

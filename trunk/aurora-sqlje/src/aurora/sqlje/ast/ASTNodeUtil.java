@@ -16,12 +16,15 @@ import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.ParameterizedType;
 import org.eclipse.jdt.core.dom.PrimitiveType;
 import org.eclipse.jdt.core.dom.QualifiedName;
+import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.StringLiteral;
 import org.eclipse.jdt.core.dom.Type;
 import org.eclipse.jdt.core.dom.TypeLiteral;
 import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 import org.eclipse.jdt.core.dom.VariableDeclarationStatement;
+
+import aurora.sqlje.core.DataTransfer;
 
 public class ASTNodeUtil {
 
@@ -128,6 +131,23 @@ public class ASTNodeUtil {
 				.newName(className)));
 		pt.typeArguments().add(ast.newSimpleType(ast.newName(typeName)));
 		return pt;
+	}
+
+	/**
+	 * DataTransfer.transfer1(type.class,rs_id);
+	 * 
+	 * @param ast
+	 * @param type
+	 * @param rs_id
+	 * @return
+	 */
+	public static Expression createDataTransferExpression(AST ast, String type,
+			String rs_id) {
+		TypeLiteral tl = newTypeLiteral(ast, type);
+		SimpleName rs_name = ast.newSimpleName(rs_id);
+		return newMethodInvocation(ast,
+				ast.newSimpleName(DataTransfer.class.getSimpleName()),
+				"transfer1", tl, rs_name);
 	}
 
 	private static final Set<String> primitive_types = new HashSet<String>(
