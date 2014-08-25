@@ -65,7 +65,7 @@ public class CliMain {
 				dir = cl.getOptionValue('o');
 			}
 
-			File javaFile = new File(dir, getNameWithoutExt(f));
+			File javaFile = new File(dir, getNameWithoutExt(f) + ".java");
 			javaFile.getParentFile().mkdirs();
 			translate(f, javaFile, charset);
 		} else if (cl.hasOption('d')) {
