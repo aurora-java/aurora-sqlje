@@ -34,7 +34,7 @@ public class CliMain {
 				.withDescription("directory of SQLJE source").create('d'));
 		opts.addOption(OptionBuilder.withArgName("directory").hasArg()
 				.withDescription("directory of output").create('o'));
-		opts.addOption(OptionBuilder.withArgName("ext").hasArg()
+		opts.addOption(OptionBuilder.withArgName("ext1,ext2..").hasArg()
 				.withDescription("SQLJE file extentions").create('e'));
 		opts.addOption(OptionBuilder.withDescription("verbos mode").create('v'));
 		if (args.length == 0) {
@@ -48,6 +48,10 @@ public class CliMain {
 
 		if (cl.hasOption('c')) {
 			charset = cl.getOptionValue('c');
+		}
+		if (cl.hasOption('e')) {
+			exts = Arrays.asList(cl.getOptionValue('e').toLowerCase()
+					.split(","));
 		}
 		if (cl.hasOption('f')) {
 			String file = cl.getOptionValue('f');
