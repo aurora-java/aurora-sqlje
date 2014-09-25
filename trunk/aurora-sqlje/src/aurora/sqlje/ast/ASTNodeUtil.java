@@ -150,6 +150,23 @@ public class ASTNodeUtil {
 				"transfer1", tl, rs_name);
 	}
 
+	/**
+	 * DataTransfer.transferAll(type.class,paraType.class,rs_id);
+	 * 
+	 * @param ast
+	 * @param type
+	 * @param rs_id
+	 * @return
+	 */
+	public static Expression createDataTransferExpression(AST ast, String type,
+			String paraType, String rs_id) {
+		TypeLiteral tl = newTypeLiteral(ast, type);
+		SimpleName rs_name = ast.newSimpleName(rs_id);
+		return newMethodInvocation(ast,
+				ast.newSimpleName(DataTransfer.class.getSimpleName()),
+				"transferAll", tl, newTypeLiteral(ast, paraType), rs_name);
+	}
+
 	private static final Set<String> primitive_types = new HashSet<String>(
 			Arrays.asList("int", "double", "long", "short", "byte", "char",
 					"boolean", "float"));
