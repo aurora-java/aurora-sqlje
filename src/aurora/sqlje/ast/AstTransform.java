@@ -33,10 +33,13 @@ import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.ExpressionStatement;
 import org.eclipse.jdt.core.dom.FieldDeclaration;
 import org.eclipse.jdt.core.dom.MethodInvocation;
+import org.eclipse.jdt.core.dom.Modifier.ModifierKeyword;
+import org.eclipse.jdt.core.dom.ParameterizedType;
 import org.eclipse.jdt.core.dom.QualifiedName;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.Statement;
+import org.eclipse.jdt.core.dom.StringLiteral;
 import org.eclipse.jdt.core.dom.StructuralPropertyDescriptor;
 import org.eclipse.jdt.core.dom.Type;
 import org.eclipse.jdt.core.dom.TypeDeclaration;
@@ -59,9 +62,12 @@ import org.eclipse.text.edits.TextEdit;
 
 import aurora.sqlje.core.ResultSetIterator;
 import aurora.sqlje.core.ResultSetUtil;
+import aurora.sqlje.core.SqlFlag;
+import aurora.sqlje.core.database.LockGenerator;
 import aurora.sqlje.exception.ParserException;
 import aurora.sqlje.exception.TransformException;
 import aurora.sqlje.parser.Parameter;
+import aurora.sqlje.parser.ParameterParser;
 import aurora.sqlje.parser.ParsedSource;
 import aurora.sqlje.parser.ParsedSql;
 import aurora.sqlje.parser.SqlBlock;
@@ -81,6 +87,8 @@ public class AstTransform {
 	public static final String METHOD_EXECUTE = "execute";
 	public static final String METHOD_GET_UPDATE_COUNT = "getUpdateCount";
 	public static final String METHOD_GET_RESULT_SET = "getResultSet";
+	public static final String SQL_FLAG = "$sql";
+	public static final String METHOD_LOCK = "$lock";
 	public static final int API_LEVEL = AST.JLS3;
 
 	private ParsedSource parsedSource;
@@ -194,6 +202,7 @@ public class AstTransform {
 		new InterfaceImpl(typeDec).addDefaultImpl();
 		new AutonomousWrapper(typeDec).autoDelegate();
 		final ArrayList<MethodInvocation> list = new ArrayList<MethodInvocation>();
+		final ArrayList<MethodInvocation> lockMiList = new ArrayList<MethodInvocation>();
 		typeDec.accept(new ASTVisitor() {
 
 			@Override
@@ -230,13 +239,58 @@ public class AstTransform {
 				if (node.getName().getIdentifier()
 						.equals(SqlPosition.METHOD_SQL_EXECUTE)) {
 					list.add(node);
+				} else if (node.getName().getIdentifier().equals(METHOD_LOCK)) {
+					lockMiList.add(node);
 				}
 
 				return super.visit(node);
 			}
 
 		});
-		methodReplace(list);
+		lockMethodReplace(lockMiList);
+		executeMethodReplace(list);
+	}
+
+	/**
+	 * replace $lock method
+	 * 
+	 * @param list
+	 * @throws Exception
+	 */
+	private void lockMethodReplace(List<MethodInvocation> list)
+			throws Exception {
+		for (MethodInvocation mi : list) {
+			Statement s = findStatement(mi);
+			List<Statement> stmts = (List<Statement>) s.getParent()
+					.getStructuralProperty(s.getLocationInParent());
+			int index = stmts.indexOf(s);
+			List<Statement> gen_stmts = generate_lock_stmts(mi);
+			stmts.remove(index);
+			stmts.addAll(index, gen_stmts);
+		}
+	}
+
+	private List<Statement> generate_lock_stmts(MethodInvocation mi)
+			throws Exception {
+		ArrayList<Statement> list = new ArrayList<Statement>();
+		List<Expression> argsList = mi.arguments();
+		String tableName = ((StringLiteral) argsList.get(0)).getLiteralValue();
+		String whereClause = null;
+		if (argsList.size() >= 1 && argsList.get(1) instanceof StringLiteral) {
+			whereClause = ((StringLiteral) argsList.get(1)).getLiteralValue();
+		}
+		String sql = LockGenerator.generateSelectForUpdateSql(tableName,
+				whereClause);
+		System.out.println(sql);
+		ParameterParser pp = new ParameterParser(sql);
+		ParsedSql psql = pp.parse();
+		String stmt_name = parsedSource.genId("ps");
+		AST ast = mi.getAST();
+		defineStatement(ast, psql, stmt_name, list);
+		performParameterBinding(ast, psql, list, stmt_name);
+		executeStatement(ast, stmt_name, list);
+		pushStmtIntoList(ast, stmt_name, list);
+		return list;
 	}
 
 	private Statement findStatement(ASTNode n) {
@@ -246,12 +300,20 @@ public class AstTransform {
 		return findStatement(p);
 	}
 
-	private void methodReplace(List<MethodInvocation> list) throws Exception {
+	/**
+	 * replace __sqlj_execute method
+	 * 
+	 * @param list
+	 * @throws Exception
+	 */
+	private void executeMethodReplace(List<MethodInvocation> list)
+			throws Exception {
 		for (MethodInvocation mi : list) {
 			String rs_id = mi.arguments().get(1).toString();
 			Statement s = findStatement(mi);
-			List<ASTNode> stmts = (List<ASTNode>) s.getParent()
+			List<Statement> stmts = (List<Statement>) s.getParent()
 					.getStructuralProperty(s.getLocationInParent());
+			autoAddSqlFlag(stmts, mi.getAST());
 			int index = stmts.indexOf(s);
 			ArrayList<Statement> gene_stmts = generate__sqlj_execute(mi);
 			stmts.addAll(index, gene_stmts);
@@ -279,6 +341,22 @@ public class AstTransform {
 				 * String name = #{select name from ...};
 				 */
 				VariableDeclarationStatement vds = (VariableDeclarationStatement) s;
+				if (vds.getType() instanceof ParameterizedType) {
+					// List<Bean> name = #{select * from ...}
+					ParameterizedType _pt = (ParameterizedType) vds.getType();
+					List<Type> types = _pt.typeArguments();
+					if (types.size() != 1) {
+						throw new Exception(_pt
+								+ " has more than one Parameter");
+					}
+					// DataTransfer.transferAll
+					Expression exp = ASTNodeUtil.createDataTransferExpression(
+							ast, _pt.getType().toString(), types.get(0)
+									.toString(), rs_id);
+					mi.getParent().setStructuralProperty(loc,
+							ASTNode.copySubtree(ast, exp));
+					continue;
+				}
 				// DataTransfer.transfer1
 				Expression exp = ASTNodeUtil.createDataTransferExpression(ast,
 						vds.getType().toString(), rs_id);
@@ -324,6 +402,41 @@ public class AstTransform {
 				System.err.println(mi + "\n\t" + loc);
 			}
 		}
+	}
+
+	void autoAddSqlFlag(List<Statement> list, AST ast) {
+		if (list.size() == 0) {
+			list.add(createSqlFlag(ast));
+		} else {
+			Statement firstStmt = list.get(0);
+			if (!(firstStmt instanceof VariableDeclarationStatement)) {
+				list.add(0, createSqlFlag(ast));
+			} else {
+				VariableDeclarationStatement vds = (VariableDeclarationStatement) firstStmt;
+				if (vds.getType().toString()
+						.equals(SqlFlag.class.getSimpleName())) {
+					// skip
+				} else
+					list.add(0, createSqlFlag(ast));
+			}
+		}
+	}
+
+	/**
+	 * final SqlFlag $sql = new SqlFlag();
+	 * 
+	 * @param ast
+	 * @return
+	 */
+	VariableDeclarationStatement createSqlFlag(AST ast) {
+		String sqlFlagClassName = SqlFlag.class.getSimpleName();
+		VariableDeclarationStatement vds = ASTNodeUtil
+				.newVariableDeclarationStatement(ast, sqlFlagClassName,
+						ASTNodeUtil.newVariableDeclarationFragment(ast,
+								SQL_FLAG, ASTNodeUtil.newClassInstance(ast,
+										sqlFlagClassName)));
+		vds.modifiers().add(ast.newModifier(ModifierKeyword.FINAL_KEYWORD));
+		return vds;
 	}
 
 	void updateReferenceInFor(EnhancedForStatement efs) {
@@ -435,24 +548,17 @@ public class AstTransform {
 		return Object.class.getSimpleName();
 	}
 
-	ArrayList<Statement> generate__sqlj_execute(MethodInvocation mi)
-			throws ParserException {
-		List<Expression> params = mi.arguments();
-		int sqlid = Integer.parseInt(params.get(0).toString());
-		String stmt_name = parsedSource.genId("ps");
-		AST ast = mi.getAST();
-		SqlBlock sqljblock = parsedSource.getSqlById(sqlid);
-		ParsedSql parsedSql = sqljblock.getParsedSql();
+	void defineStatement(AST ast, ParsedSql ps, String stmt_name,
+			ArrayList<Statement> stmt_list) {
 		String stmt_type = java.sql.PreparedStatement.class.getSimpleName();
 		String prepare_method = METHOD_PREPARE_STATEMENT;
-		if (parsedSql.hasOutputParameter()) {
+		if (ps.hasOutputParameter()) {
 			stmt_type = java.sql.CallableStatement.class.getSimpleName();
 			prepare_method = METHOD_PREPARE_CALL;
 		}
-		ArrayList<Statement> generated_statements = new ArrayList<Statement>();
 
-		Expression sqlExpression = createSqlLiteralStatements(ast, parsedSql,
-				generated_statements);
+		Expression sqlExpression = createSqlLiteralStatements(ast, ps,
+				stmt_list);
 		// PreparedStatement ps =
 		// getSqlCallStack().getCurrentConnection().preparedStatement(sql);
 		VariableDeclarationStatement vds = newVariableDeclarationStatement(
@@ -469,17 +575,35 @@ public class AstTransform {
 												GET_SQLCALL_STACK),
 										METHOD_GET_CONNECTION), prepare_method,
 								sqlExpression)));
+		stmt_list.add(vds);
+	}
 
-		generated_statements.add(vds);
+	void executeStatement(AST ast, String stmt_name,
+			ArrayList<Statement> stmt_list) {
+		MethodInvocation mi2 = newMethodInvocation(ast,
+				ast.newSimpleName(stmt_name), METHOD_EXECUTE);
+		stmt_list.add(ast.newExpressionStatement(mi2));
+	}
+
+	ArrayList<Statement> generate__sqlj_execute(MethodInvocation mi)
+			throws ParserException {
+		List<Expression> params = mi.arguments();
+		int sqlid = Integer.parseInt(params.get(0).toString());
+		String stmt_name = parsedSource.genId("ps");
+		AST ast = mi.getAST();
+		SqlBlock sqljblock = parsedSource.getSqlById(sqlid);
+		ParsedSql parsedSql = sqljblock.getParsedSql();
+
+		ArrayList<Statement> generated_statements = new ArrayList<Statement>();
+		// define Statement
+		defineStatement(ast, parsedSql, stmt_name, generated_statements);
 		// bind parameters
 		performParameterBinding(ast, parsedSql, generated_statements, stmt_name);
 		// execute
-		MethodInvocation mi2 = newMethodInvocation(ast,
-				ast.newSimpleName(stmt_name), METHOD_EXECUTE);
-		generated_statements.add(ast.newExpressionStatement(mi2));
+		executeStatement(ast, stmt_name, generated_statements);
 		// set UPDATE_COUNT flag
 		Assignment assi = ast.newAssignment();
-		assi.setLeftHandSide(ast.newSimpleName(UPDATE_COUNT));
+		assi.setLeftHandSide(ast.newName(SQL_FLAG + ".UPDATECOUNT"));
 		assi.setRightHandSide(newMethodInvocation(ast,
 				ast.newSimpleName(stmt_name), METHOD_GET_UPDATE_COUNT));
 		generated_statements.add(ast.newExpressionStatement(assi));
@@ -503,11 +627,14 @@ public class AstTransform {
 						newMethodInvocation(ast, null, GET_SQLCALL_STACK),
 						PUSH, ast.newSimpleName(rs_name))));
 		// put Statement into list
-		generated_statements.add(ast
-				.newExpressionStatement(newMethodInvocation(ast,
-						newMethodInvocation(ast, null, GET_SQLCALL_STACK),
-						PUSH, ast.newSimpleName(stmt_name))));
+		pushStmtIntoList(ast, stmt_name, generated_statements);
 		return generated_statements;
+	}
+
+	void pushStmtIntoList(AST ast, String stmt_name, ArrayList<Statement> list) {
+		list.add(ast.newExpressionStatement(newMethodInvocation(ast,
+				newMethodInvocation(ast, null, GET_SQLCALL_STACK), PUSH,
+				ast.newSimpleName(stmt_name))));
 	}
 
 	/**
