@@ -1,10 +1,13 @@
 package aurora.sqlje.core;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.TypeVariable;
 import java.math.BigDecimal;
 import java.sql.*;
 import java.sql.Date;
 import java.util.*;
+
+import org.eclipse.jdt.core.dom.TypeParameter;
 
 import aurora.sqlje.exception.*;
 
@@ -19,12 +22,21 @@ public class DataTransfer {
 	 * transfer one row into given type object
 	 * 
 	 * @param clazz
-	 *            <table> <tr><td>sub class of Map</td><td>HashMap(interface) or
-	 *            clazz.newInstance()</td></tr> <tr><td>one of
-	 *            {@link #supported_types}</td><td>
-	 *            {@link #verboseGet(ResultSet, String, Class)} </td></tr>
-	 *            <tr><td><i>others</i></td><td>java bean(public
-	 *            fields)</td></tr> </table>
+	 *            <table>
+	 *            <tr>
+	 *            <td>sub class of Map</td>
+	 *            <td>HashMap(interface) or clazz.newInstance()</td>
+	 *            </tr>
+	 *            <tr>
+	 *            <td>one of {@link #supported_types}</td>
+	 *            <td>
+	 *            {@link #verboseGet(ResultSet, String, Class)}</td>
+	 *            </tr>
+	 *            <tr>
+	 *            <td><i>others</i></td>
+	 *            <td>java bean(public fields)</td>
+	 *            </tr>
+	 *            </table>
 	 * @param rs
 	 * @return
 	 * @throws Exception
@@ -72,6 +84,33 @@ public class DataTransfer {
 		return map;
 	}
 
+	public static <T> T transferAll(Class<? extends List> clazz, Class eleClazz,
+			ResultSet rs) throws Exception {
+		List collection = null;
+		if (clazz.isInterface())
+			collection = new ArrayList();
+		else
+			collection = clazz.newInstance();
+		List<String> column_names = getColumnNames(rs);
+		while (rs.next()) { 
+			if (Map.class.isAssignableFrom(eleClazz)) {
+				Map map = null;
+				if (eleClazz.isInterface())
+					map = new HashMap();
+				else
+					map = (Map) eleClazz.newInstance();
+				fillMap(map, rs, column_names);
+				collection.add(map);
+			} else {
+				Object bean = eleClazz.newInstance();
+				fillBean(bean, rs, column_names);
+				collection.add(bean);
+			}
+
+		}
+		return (T)collection;
+	}
+
 	public static List<String> getColumnNames(ResultSet rs) throws SQLException {
 		List<String> column_names = new ArrayList<String>();
 		ResultSetMetaData rsmd = rs.getMetaData();
@@ -93,7 +132,7 @@ public class DataTransfer {
 			List<String> column_names) throws IllegalArgumentException,
 			IllegalAccessException, SQLException {
 		Field[] flds = bean.getClass().getFields();
-		
+
 		ArrayList<String> acceptedColumns = new ArrayList<String>();
 		for (Field f : flds) {
 			if (supported_type_list.contains(f.getType())) {
@@ -208,10 +247,22 @@ public class DataTransfer {
 	 * 
 	 * @param obj
 	 *            <table border='0'>
-	 *            <tr><td>Number</td><td>Number.longValue()</td></tr>
-	 *            <tr><td>String</td><td>Long.parseLong(String)</td></tr>
-	 *            <tr><td>null</td><td>0</td></tr>
-	 *            <tr><td><b>others</b></td><td>NumberFormatException</td></tr>
+	 *            <tr>
+	 *            <td>Number</td>
+	 *            <td>Number.longValue()</td>
+	 *            </tr>
+	 *            <tr>
+	 *            <td>String</td>
+	 *            <td>Long.parseLong(String)</td>
+	 *            </tr>
+	 *            <tr>
+	 *            <td>null</td>
+	 *            <td>0</td>
+	 *            </tr>
+	 *            <tr>
+	 *            <td><b>others</b></td>
+	 *            <td>NumberFormatException</td>
+	 *            </tr>
 	 *            </table>
 	 * @return
 	 */
@@ -224,20 +275,33 @@ public class DataTransfer {
 			return 0L;
 		throw new NumberFormatException(obj + " is not a number.");
 	}
-	
+
 	/**
 	 * 
 	 * @param obj
 	 *            <table border='0'>
-	 *            <tr><td>Number</td><td>Number.longValue()</td></tr>
-	 *            <tr><td>String</td><td>Long.parseLong(String)</td></tr>
-	 *            <tr><td>null</td><td>default_</td></tr>
-	 *            <tr><td><b>others</b></td><td>NumberFormatException</td></tr>
+	 *            <tr>
+	 *            <td>Number</td>
+	 *            <td>Number.longValue()</td>
+	 *            </tr>
+	 *            <tr>
+	 *            <td>String</td>
+	 *            <td>Long.parseLong(String)</td>
+	 *            </tr>
+	 *            <tr>
+	 *            <td>null</td>
+	 *            <td>default_</td>
+	 *            </tr>
+	 *            <tr>
+	 *            <td><b>others</b></td>
+	 *            <td>NumberFormatException</td>
+	 *            </tr>
 	 *            </table>
-	 * @param default_ the default return (if obj is null)
+	 * @param default_
+	 *            the default return (if obj is null)
 	 * @return
 	 */
-	public static Long castLong(Object obj,Long default_) {
+	public static Long castLong(Object obj, Long default_) {
 		if (obj instanceof Number)
 			return ((Number) obj).longValue();
 		if (obj instanceof String)
