@@ -35,6 +35,7 @@ public class SqlCallStack implements ISqlCallStack {
 	@Override
 	public Connection createConnection() throws SQLException {
 		Connection conn = dataSource.getConnection();
+		conn.setAutoCommit(false);
 		connectionStack.push(conn);
 		return conn;
 	}

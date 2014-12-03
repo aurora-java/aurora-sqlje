@@ -1,34 +1,7 @@
 package aurora.sqlje.core.database;
 
-import aurora.sqlje.core.ISqlCallStack;
 
 public class LockGenerator {
-	/**
-	 * lock rows specified by whereClause<br>
-	 * <strong>NOTE.</strong><br>
-	 * database maybe escalation ROW_LOCK to TABLE_LOCK
-	 * 
-	 * @param callStack
-	 * @param tableName
-	 * @param whereClause
-	 * @throws Exception
-	 */
-	public static void $lock(ISqlCallStack callStack, String tableName,
-			String whereClause) throws Exception {
-
-	}
-
-	/**
-	 * lock whole table
-	 * 
-	 * @param callStack
-	 * @param tableName
-	 * @throws Exception
-	 */
-	public static void $lock(ISqlCallStack callStack, String tableName)
-			throws Exception {
-		$lock(callStack, tableName, null);
-	}
 
 	public static String generateLockSql(IDatabaseDescriptor dbDesc,
 			String tableName, String whereClause) {
@@ -67,7 +40,7 @@ public class LockGenerator {
 	 *            when null use HOLDLOCK else use ROWLOCK
 	 * @return
 	 */
-	private static String generateWithLockSql(String tableName,
+	public static String generateWithLockSql(String tableName,
 			String whereClause) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("SELECT * FROM ").append(tableName);

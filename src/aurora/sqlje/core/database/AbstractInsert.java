@@ -35,10 +35,12 @@ public abstract class AbstractInsert {
 	private String tableName;
 	private String pkName;
 
-	public AbstractInsert(ISqlCallStack context, Object bean) {
+	public AbstractInsert(ISqlCallStack context, Object bean,String tableName,String pkName) {
 		super();
 		this.context = context;
 		this.recordBean = bean;
+		this.tableName=tableName;
+		this.pkName = pkName;
 	}
 
 	public AbstractInsert(ISqlCallStack context, Map map, String tableName,
@@ -208,8 +210,8 @@ public abstract class AbstractInsert {
 			InsertField insf = new InsertField();
 			if (af != null && af.name().length() > 0)
 				insf.setName(af.name());
-			if (pkaf != null) {
-				pkName = name;
+			if (name.equals(pkName)) {
+				//pkName = name;
 				// System.out.println("pk:" + pkName);
 				insf.setParaBinding(false);
 				insf.setExpression(getInsertExpressionForPk());
@@ -224,6 +226,8 @@ public abstract class AbstractInsert {
 	}
 
 	private void getInsertFieldOptionsOfMap(Map<String, Object> map) {
+		if(!map.keySet().contains(pkName))
+			map.put(pkName,null);
 		ArrayList<String> columnList = new ArrayList<String>();
 		for (String s : map.keySet()) {
 			if (s != null && s.length() > 0 && s.charAt(0) != '$') {
@@ -260,10 +264,11 @@ public abstract class AbstractInsert {
 			tableName = dbt.name();
 			standardWhoEnabled = dbt.stdwho();
 			System.out.println("tableName:" + tableName);
-		} else {
-			tableName = bean.getClass().getSimpleName().toUpperCase();
-			System.out.println("className:" + tableName);
-		}
+		} 
+		/*
+		 * else { tableName = bean.getClass().getSimpleName().toUpperCase();
+		 * System.out.println("className:" + tableName); }
+		 */
 	}
 
 	protected abstract String getInsertExpressionForPk();

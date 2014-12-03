@@ -12,6 +12,7 @@ import static aurora.sqlje.ast.ASTNodeUtil.newVariableDeclarationStatement;
 import static aurora.sqlje.ast.ASTNodeUtil.parseExpression;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -64,6 +65,8 @@ import aurora.sqlje.core.ResultSetIterator;
 import aurora.sqlje.core.ResultSetUtil;
 import aurora.sqlje.core.SqlFlag;
 import aurora.sqlje.core.database.LockGenerator;
+import aurora.sqlje.core.database.MysqlInsert;
+import aurora.sqlje.core.database.OracleInsert;
 import aurora.sqlje.exception.ParserException;
 import aurora.sqlje.exception.TransformException;
 import aurora.sqlje.parser.Parameter;
@@ -89,9 +92,12 @@ public class AstTransform {
 	public static final String METHOD_GET_RESULT_SET = "getResultSet";
 	public static final String SQL_FLAG = "$sql";
 	public static final String METHOD_LOCK = "$lock";
+	public static final String METHOD_INSERT = "$insert";
 	public static final int API_LEVEL = AST.JLS3;
 
 	private ParsedSource parsedSource;
+
+	private String targetDatabase = "mysql";
 
 	public AstTransform(ParsedSource parsedSource) {
 		super();
@@ -117,6 +123,30 @@ public class AstTransform {
 		}
 
 		return result.toString();
+	}
+
+	public void setTargetDatabase(String dbname) {
+		this.targetDatabase = dbname;
+		List<String> list = Arrays.asList("oracle", "mysql", "sqlserver");
+		if (!list.contains(dbname))
+			throw new IllegalArgumentException("target database name :"
+					+ dbname + " is not valid.");
+	}
+
+	public String getTargetDatabase() {
+		return targetDatabase;
+	}
+
+	boolean isForOracle() {
+		return "oracle".equals(targetDatabase);
+	}
+
+	boolean isForMysql() {
+		return "mysql".equals(targetDatabase);
+	}
+
+	boolean isForSqlServer() {
+		return "sqlserver".equals(targetDatabase);
 	}
 
 	/**
@@ -203,6 +233,7 @@ public class AstTransform {
 		new AutonomousWrapper(typeDec).autoDelegate();
 		final ArrayList<MethodInvocation> list = new ArrayList<MethodInvocation>();
 		final ArrayList<MethodInvocation> lockMiList = new ArrayList<MethodInvocation>();
+		final ArrayList<MethodInvocation> insertMiList = new ArrayList<MethodInvocation>();
 		typeDec.accept(new ASTVisitor() {
 
 			@Override
@@ -241,6 +272,8 @@ public class AstTransform {
 					list.add(node);
 				} else if (node.getName().getIdentifier().equals(METHOD_LOCK)) {
 					lockMiList.add(node);
+				} else if (node.getName().getIdentifier().equals(METHOD_INSERT)) {
+					insertMiList.add(node);
 				}
 
 				return super.visit(node);
@@ -248,11 +281,14 @@ public class AstTransform {
 
 		});
 		lockMethodReplace(lockMiList);
+		insertMethodReplace(insertMiList);
 		executeMethodReplace(list);
 	}
 
 	/**
-	 * replace $lock method
+	 * replace $lock method<br>
+	 * $lock("tableName","whereClause");<br>
+	 * $lock("tableName");
 	 * 
 	 * @param list
 	 * @throws Exception
@@ -279,8 +315,14 @@ public class AstTransform {
 		if (argsList.size() >= 1 && argsList.get(1) instanceof StringLiteral) {
 			whereClause = ((StringLiteral) argsList.get(1)).getLiteralValue();
 		}
-		String sql = LockGenerator.generateSelectForUpdateSql(tableName,
-				whereClause);
+
+		String sql = null;
+		if (isForOracle() || isForMysql()) {
+			sql = LockGenerator.generateSelectForUpdateSql(tableName,
+					whereClause);
+		} else if (isForSqlServer()) {
+			sql = LockGenerator.generateWithLockSql(tableName, whereClause);
+		}
 		System.out.println(sql);
 		ParameterParser pp = new ParameterParser(sql);
 		ParsedSql psql = pp.parse();
@@ -291,6 +333,53 @@ public class AstTransform {
 		executeStatement(ast, stmt_name, list);
 		pushStmtIntoList(ast, stmt_name, list);
 		return list;
+	}
+
+	/**
+	 * $insert("tableName","pkName",bean); $insert("tableName","pkName",map)
+	 * 
+	 * @param list
+	 * @throws Exception
+	 */
+	private void insertMethodReplace(List<MethodInvocation> list)
+			throws Exception {
+		for (MethodInvocation mi : list) {
+			Statement s = findStatement(mi);
+			List<Statement> stmts = (List<Statement>) s.getParent()
+					.getStructuralProperty(s.getLocationInParent());
+			int index = stmts.indexOf(s);
+			List<Statement> gen_stmts = generate_insert_stmts(mi);
+			stmts.remove(index);
+			stmts.addAll(index, gen_stmts);
+		}
+	}
+
+	private List<Statement> generate_insert_stmts(MethodInvocation mi)
+			throws Exception {
+		ArrayList<Statement> stmts_list = new ArrayList<Statement>();
+		List<Expression> argsList = mi.arguments();
+		String tableName = ((StringLiteral) argsList.get(0)).getLiteralValue();
+		String pkName = ((StringLiteral) argsList.get(1)).getLiteralValue();
+		AST ast = mi.getAST();
+		Expression exp = null;
+		if (isForOracle()) {
+			exp = ASTNodeUtil.newClassInstance(ast, OracleInsert.class
+					.getName(), ASTNodeUtil.newMethodInvocation(ast, null,
+					GET_SQLCALL_STACK), ast.newSimpleName(argsList.get(2)
+					.toString()), ASTNodeUtil.newStringLiteral(ast, tableName),
+					ASTNodeUtil.newStringLiteral(ast, pkName));
+		} else if (isForMysql() || isForSqlServer()) {
+			exp = ASTNodeUtil.newClassInstance(ast,
+					MysqlInsert.class.getName(), ASTNodeUtil
+							.newMethodInvocation(ast, null, GET_SQLCALL_STACK),
+					ast.newSimpleName(argsList.get(2).toString()), ASTNodeUtil
+							.newStringLiteral(ast, tableName), ASTNodeUtil
+							.newStringLiteral(ast, pkName));
+		}
+		;
+		stmts_list.add(ast.newExpressionStatement(ASTNodeUtil
+				.newMethodInvocation(ast, exp, "insert")));
+		return stmts_list;
 	}
 
 	private Statement findStatement(ASTNode n) {
@@ -313,7 +402,7 @@ public class AstTransform {
 			Statement s = findStatement(mi);
 			List<Statement> stmts = (List<Statement>) s.getParent()
 					.getStructuralProperty(s.getLocationInParent());
-			autoAddSqlFlag(stmts, mi.getAST());
+			//autoAddSqlFlag(stmts, mi.getAST());//move to nterfaceImpl
 			int index = stmts.indexOf(s);
 			ArrayList<Statement> gene_stmts = generate__sqlj_execute(mi);
 			stmts.addAll(index, gene_stmts);
