@@ -116,7 +116,7 @@ public class DataTransfer {
 		ResultSetMetaData rsmd = rs.getMetaData();
 		int c = rsmd.getColumnCount();
 		for (int i = 1; i <= c; i++)
-			column_names.add(rsmd.getColumnName(i));
+			column_names.add(rsmd.getColumnName(i).toUpperCase());
 		return column_names;
 	}
 
