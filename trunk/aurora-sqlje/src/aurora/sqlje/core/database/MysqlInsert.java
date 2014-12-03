@@ -19,8 +19,8 @@ public class MysqlInsert extends AbstractInsert {
 		super(context, map, tableName, pkName);
 	}
 
-	public MysqlInsert(ISqlCallStack context, Object bean) {
-		super(context, bean);
+	public MysqlInsert(ISqlCallStack context, Object bean,String tableName,String pkName) {
+		super(context, bean,tableName,pkName);
 	}
 
 	@Override

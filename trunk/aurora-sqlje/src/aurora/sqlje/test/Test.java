@@ -8,6 +8,7 @@ import aurora.sqlje.ast.AstTransform;
 import aurora.sqlje.parser.ParsedSource;
 import aurora.sqlje.parser.SqljeParser;
 
+
 public class Test {
 	public static void main(String[] args) throws Exception {
 //		File fi = new File(
@@ -21,7 +22,7 @@ public class Test {
 		fis.read(b);
 		fis.close();
 		String source = new String(b, "UTF-8");
-		SqljeParser parser = new SqljeParser(source);
+		SqljeParser parser = new SqljeParser(source);	
 		FileWriter fw = new FileWriter(fo);
 		ParsedSource ps = parser.parse();
 		AstTransform trans = new AstTransform(ps);
@@ -30,4 +31,5 @@ public class Test {
 		fw.close();
 
 	}
+
 }

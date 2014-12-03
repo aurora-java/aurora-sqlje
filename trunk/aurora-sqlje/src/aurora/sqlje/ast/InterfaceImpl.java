@@ -18,9 +18,12 @@ import org.eclipse.jdt.core.dom.Modifier;
 import org.eclipse.jdt.core.dom.ReturnStatement;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.TypeDeclaration;
+import org.eclipse.jdt.core.dom.VariableDeclarationStatement;
+import org.eclipse.jdt.core.dom.Modifier.ModifierKeyword;
 
 import aurora.sqlje.core.ISqlCallEnabled;
 import aurora.sqlje.core.ISqlCallStack;
+import aurora.sqlje.core.SqlFlag;
 
 public class InterfaceImpl {
 	public static final String SQLCALLSTACK_NAME = "_$sqlje_sqlcallstack_";
@@ -44,7 +47,7 @@ public class InterfaceImpl {
 
 		List<BodyDeclaration> bodys = typeDec.bodyDeclarations();
 
-		variableTypeMap.put(Integer.class, AstTransform.UPDATE_COUNT);
+		//variableTypeMap.put(Integer.class, AstTransform.UPDATE_COUNT);
 
 
 		List<MethodDeclaration> methods = new ArrayList<MethodDeclaration>();
@@ -59,6 +62,7 @@ public class InterfaceImpl {
 		for(Class<?> c:variableTypeMap.keySet()) {
 			createField(typeDec, c, variableTypeMap.get(c), false);
 		}
+		createSqlFlag(ast, typeDec);
 		bodys.addAll(methods);
 	}
 
@@ -69,7 +73,26 @@ public class InterfaceImpl {
 				.newFieldDeclaration(newVariableDeclarationFragment(ast, name,
 						null));
 		fd.setType(newSimpleType(ast, type.getName()));
+		fd.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD));
 		td.bodyDeclarations().add(fd);
+	}
+	
+	/**
+	 *  SqlFlag $sql = new SqlFlag();
+	 * 
+	 * @param ast
+	 * @return
+	 */
+	void createSqlFlag(AST ast,TypeDeclaration td) {
+		String sqlFlagClassName = SqlFlag.class.getSimpleName();
+
+		FieldDeclaration fd = ast.newFieldDeclaration(ASTNodeUtil.newVariableDeclarationFragment(ast,
+								AstTransform.SQL_FLAG, ASTNodeUtil.newClassInstance(ast,
+										sqlFlagClassName)));
+		fd.setType(newSimpleType(ast, sqlFlagClassName));
+		fd.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD));
+		td.bodyDeclarations().add(fd);
+		//return vds;
 	}
 
 	public static MethodDeclaration createFromMethod(AST ast, Method m) {
@@ -96,8 +119,7 @@ public class InterfaceImpl {
 		Block block = ast.newBlock();
 		int i = 0;
 		List<SingleVariableDeclaration> params = md.parameters();
-		for (java.lang.reflect.Parameter p : m.getParameters()) {
-			Class<?> type = p.getType();
+		for (Class<?> type : m.getParameterTypes()) {
 			String varName = getVarName(type, true);
 			block.statements().add(
 					ast.newExpressionStatement(ASTNodeUtil.newSimpleAssignment(

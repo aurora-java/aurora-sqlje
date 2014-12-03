@@ -1,30 +1,27 @@
 package aurora.sqlje.core;
 
-import uncertain.composite.CompositeMap;
-import uncertain.ocm.OCManager;
+import uncertain.ocm.IObjectCreator;
 
 public class InstanceManager implements IInstanceManager {
 
-	private OCManager ocManager;
+	private IObjectCreator ioc;
 
-	public InstanceManager(OCManager ocm) {
+	public InstanceManager(IObjectCreator ioc) {
 		super();
-		this.ocManager = ocm;
+		this.ioc = ioc;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends ISqlCallEnabled> T createInstance(
 			Class<? extends ISqlCallEnabled> clazz) {
-		CompositeMap container = new CompositeMap();
-		String eleName = clazz.getSimpleName();
-		container.setName(eleName);
-		String pkgName = null;
-		if (clazz.getPackage() != null)
-			pkgName = clazz.getPackage().getName();
-		container.setNameSpaceURI(pkgName);
-		ocManager.getClassRegistry().registerClass(eleName, pkgName, eleName);
-		@SuppressWarnings("unchecked")
-		T proc = (T) ocManager.createNewInstance(container);
+		T proc;
+		try {
+			proc = (T) ioc.createInstance(clazz);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return null;
+		}
 		if (proc != null)
 			proc._$setInstanceManager(this);
 		return proc;

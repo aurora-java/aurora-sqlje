@@ -1,15 +1,16 @@
 package aurora.sqlje.core;
 
 import uncertain.core.ILifeCycle;
+import uncertain.ocm.IObjectCreator;
 import uncertain.ocm.IObjectRegistry;
 import uncertain.ocm.OCManager;
 
 public class SqljeConfig implements ILifeCycle {
 
-	private OCManager ocManager;
+	private IObjectCreator ocManager;
 	private IObjectRegistry objectRegistry;
 
-	public SqljeConfig(OCManager ocm, IObjectRegistry ior) {
+	public SqljeConfig(IObjectCreator ocm, IObjectRegistry ior) {
 		super();
 		this.ocManager = ocm;
 		this.objectRegistry = ior;

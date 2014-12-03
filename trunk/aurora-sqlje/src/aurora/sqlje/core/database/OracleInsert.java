@@ -27,8 +27,8 @@ public class OracleInsert extends AbstractInsert {
 		// TODO Auto-generated constructor stub
 	}
 
-	public OracleInsert(ISqlCallStack context, Object bean) {
-		super(context, bean);
+	public OracleInsert(ISqlCallStack context, Object bean,String tableName,String pkName) {
+		super(context, bean,tableName,pkName);
 	}
 
 	@Override
