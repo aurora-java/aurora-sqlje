@@ -40,7 +40,7 @@ public interface ISqlCallStack {
 
 	public void commit() throws SQLException;
 
-	public void roolback() throws SQLException;
+	public void rollback() throws SQLException;
 	
 	public IDatabaseDescriptor getDatabaseDescriptor() ;
 

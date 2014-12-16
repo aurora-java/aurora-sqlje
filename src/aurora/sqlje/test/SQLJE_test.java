@@ -5,7 +5,6 @@ import java.util.List;
 import java.sql.*;
 import aurora.sqlje.exception.*;
 import java.util.Map;
-import uncertain.composite.*;
 import aurora.sqlje.core.*;
 
 /**
@@ -66,12 +65,12 @@ public class SQLJE_test implements aurora.sqlje.core.ISqlCallEnabled {
 		$sql.setInstanceManager(_$sqlje_instanceManager);
 	}
 
-	public aurora.sqlje.core.IInstanceManager getInstanceManager() {
-		return _$sqlje_instanceManager;
-	}
-
 	public void _$setSqlCallStack(aurora.sqlje.core.ISqlCallStack args0) {
 		_$sqlje_sqlCallStack = args0;
 		$sql.setSqlCallStack(_$sqlje_sqlCallStack);
+	}
+
+	public aurora.sqlje.core.IInstanceManager getInstanceManager() {
+		return _$sqlje_instanceManager;
 	}
 }
