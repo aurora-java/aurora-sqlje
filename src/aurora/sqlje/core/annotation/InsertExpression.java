@@ -1,4 +1,4 @@
-package aurora.sqlje.core.database;
+package aurora.sqlje.core.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -7,11 +7,7 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface DBField {
-	/**
-	 * the real name of column
-	 * 
-	 * @return
-	 */
-	String name() default "";
+public @interface InsertExpression {
+
+	String value();
 }

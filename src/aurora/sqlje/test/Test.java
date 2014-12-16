@@ -3,6 +3,8 @@ package aurora.sqlje.test;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 import aurora.sqlje.ast.AstTransform;
 import aurora.sqlje.parser.ParsedSource;

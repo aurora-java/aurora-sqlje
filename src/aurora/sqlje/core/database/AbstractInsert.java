@@ -1,5 +1,6 @@
 package aurora.sqlje.core.database;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -10,9 +11,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import uncertain.ocm.ReflectionMapper;
 import aurora.database.service.SqlServiceContext;
 import aurora.sqlje.core.DataTransfer;
 import aurora.sqlje.core.ISqlCallStack;
+import aurora.sqlje.core.annotation.Column;
+import aurora.sqlje.core.annotation.InsertExpression;
+import aurora.sqlje.core.annotation.PK;
+import aurora.sqlje.core.annotation.Table;
+import aurora.sqlje.parser.Parameter;
+import aurora.sqlje.parser.ParsedSql;
+import aurora.sqlje.parser.SqlBlock;
 
 public abstract class AbstractInsert {
 
@@ -34,13 +43,20 @@ public abstract class AbstractInsert {
 
 	private String tableName;
 	private String pkName;
+	private ParsedSql parsedSql;
+	private ReflectionMapper reflectionMapper;
 
-	public AbstractInsert(ISqlCallStack context, Object bean,String tableName,String pkName) {
+	public AbstractInsert(ISqlCallStack context, Object bean, String tableName,
+			String pkName) {
 		super();
 		this.context = context;
 		this.recordBean = bean;
-		this.tableName=tableName;
+		this.tableName = tableName;
 		this.pkName = pkName;
+	}
+
+	public AbstractInsert(ISqlCallStack context, Object bean) {
+		this(context, bean, null, null);
 	}
 
 	public AbstractInsert(ISqlCallStack context, Map map, String tableName,
@@ -61,9 +77,12 @@ public abstract class AbstractInsert {
 		Connection conn = context.getCurrentConnection();
 		getInsertFieldOptions();
 		String _sql_ = createInsertSql();
-		String sql = getPrefix() + _sql_ + getSuffix();
-
-		// System.out.println(sql);
+		String sql = getPrefix() + _sql_ + getSuffix(pkName);
+		SqlBlock sqlb = new SqlBlock();
+		sqlb.setSql(sql);
+		parsedSql = sqlb.getParsedSql();
+		sql = parsedSql.toStringLiteral();
+		System.out.println(sql);
 		PreparedStatement ps = createStatement(conn, sql);
 		performParameterBinding(ps);
 		Object pk = execute(ps);
@@ -96,23 +115,43 @@ public abstract class AbstractInsert {
 			String sql) throws SQLException;
 
 	protected int performParameterBinding(PreparedStatement ps)
-			throws SQLException {
-		int i = 1;
-		for (String c : columns) {
-			InsertField insf = insertFieldOptions.get(c);
-			if (insf.isParamBinding()) {
-				ps.setObject(i, insf.getValue());
-				// System.out.printf("%d%30s%s\n", i, c,
-				// String.valueOf(insf.getValue()));
-				i++;
-			}
+			throws Exception {
+		ArrayList<Parameter> params = parsedSql.getBindParameters();
+		int pkIndex = -1;
+		for (int i = 0; i < params.size(); i++) {
+			Parameter p = params.get(i);
+			System.out.println(p);
+			if (p.getType() != Parameter.OUT) {
+				InsertField insf = insertFieldOptions.get(p.getExpression());
+				if (insf != null) {
+					if (insf.isParamBinding()) {
+						System.out.println("\t" + insf.getValue());
+						ps.setObject(i + 1, insf.getValue());
+					} else {
+						System.out.println("\t" + insf.getExpression());
+						ps.setObject(i + 1, getFieldValue(p.getExpression()));
+					}
+				} else {
+					Object v = getFieldValue(p.getExpression());
+					System.out.println("\t" + v);
+					ps.setObject(i + 1, v);
+				}
+			} else
+				pkIndex = i + 1;
+
 		}
-		if (standardWhoEnabled) {
-			InsertField insf = insertFieldOptions.get(createdByField);
-			ps.setObject(i++, insf.getValue());
-			ps.setObject(i++, insf.getValue());
+		return pkIndex;
+	}
+
+	protected Object getFieldValue(String name) throws Exception {
+		if (name.contains("@")) {
+			return context.getContextData().getObject(name);
 		}
-		return i;
+		if (recordBean != null) {
+			return recordBean.getClass().getField(name).get(recordBean);
+		} else if (recordMap != null)
+			return recordMap.get(name);
+		return null;
 	}
 
 	protected abstract String getDateExpression();
@@ -125,7 +164,7 @@ public abstract class AbstractInsert {
 
 	protected String createInsertSql() {
 		StringBuilder strb = new StringBuilder();
-		strb.append("insert into ").append(getTableName()).append("\n(");
+		strb.append("INSERT INTO ").append(getTableName()).append("\n(");
 		for (int i = 0; i < columns.length; i++) {
 			if (i != 0)
 				strb.append(",");
@@ -136,7 +175,7 @@ public abstract class AbstractInsert {
 			for (String s : stdwho_fields)
 				strb.append(",").append(s);
 		}
-		strb.append(")\nvalues\n(");
+		strb.append(")\nVALUES\n(");
 		for (int i = 0; i < columns.length; i++) {
 			if (i != 0)
 				strb.append(",");
@@ -147,7 +186,8 @@ public abstract class AbstractInsert {
 				continue;
 			}
 			if (insf.isParamBinding()) {
-				strb.append("?");
+				// strb.append("?")
+				strb.append("${" + insf.getName() + "}");
 			} else {
 				strb.append(insf.getExpression());
 			}
@@ -157,7 +197,7 @@ public abstract class AbstractInsert {
 			for (String s : stdwho_fields) {
 				InsertField insf = insertFieldOptions.get(s);
 				if (insf.isParamBinding())
-					strb.append(",").append("?");
+					strb.append(",").append("${" + insf.getName() + "}");
 				else
 					strb.append(",").append(insf.getExpression());
 			}
@@ -176,19 +216,33 @@ public abstract class AbstractInsert {
 			SqlServiceContext sqlsvc = SqlServiceContext
 					.createSqlServiceContext(context.getContextData());
 			Long user_id = sqlsvc.getSession().getLong("user_id");
-			InsertField insf = new InsertField();
-			insf.setType(Long.class);
-			insf.setValue(user_id);
-			insertFieldOptions.put(createdByField, insf);
-			insertFieldOptions.put(lastUpdatedByField, insf);
+			insertFieldOptions.put(createdByField,
+					createInsertField(createdByField, Long.class, user_id));
+			insertFieldOptions.put(lastUpdatedByField,
+					createInsertField(lastUpdatedByField, Long.class, user_id));
 
-			insf = new InsertField();
-			insf.setParaBinding(false);
-			insf.setExpression(getTimeExpression());
-			insertFieldOptions.put(creationDateField, insf);
-			insertFieldOptions.put(lastUpdatedDateField, insf);
+			insertFieldOptions.put(creationDateField,
+					createInsertField(getTimeExpression()));
+			insertFieldOptions.put(lastUpdatedDateField,
+					createInsertField(getTimeExpression()));
 		}
 		return insertFieldOptions;
+	}
+
+	protected InsertField createInsertField(String name, Class<?> type,
+			Object value) {
+		InsertField insf = new InsertField();
+		insf.setName(name);
+		insf.setType(type);
+		insf.setValue(value);
+		return insf;
+	}
+
+	protected InsertField createInsertField(String expression) {
+		InsertField insf = new InsertField();
+		insf.setParaBinding(false);
+		insf.setExpression(expression);
+		return insf;
 	}
 
 	private void getInsertFieldOptionsOfBean(Object bean) throws Exception {
@@ -205,16 +259,25 @@ public abstract class AbstractInsert {
 			if (stdwho_fields_list.contains(name.toUpperCase()))
 				continue;
 			columnList.add(name);
-			DBField af = f.getAnnotation(DBField.class);
-			PK pkaf = f.getAnnotation(PK.class);
+			Column col = f.getAnnotation(Column.class);
+			InsertExpression insertExp = f
+					.getAnnotation(InsertExpression.class);
 			InsertField insf = new InsertField();
-			if (af != null && af.name().length() > 0)
-				insf.setName(af.name());
+			insf.setName(name);
+			if (col != null && col.name().length() > 0)
+				name = col.name();
+			PK pkaf = f.getAnnotation(PK.class);
+			if (pkaf != null && pkName == null)
+				pkName = name;
+			insf.setName(name);
 			if (name.equals(pkName)) {
-				//pkName = name;
+				// pkName = name;
 				// System.out.println("pk:" + pkName);
 				insf.setParaBinding(false);
 				insf.setExpression(getInsertExpressionForPk());
+			} else if (insertExp != null && insertExp.value().length() > 0) {
+				insf.setParaBinding(false);
+				insf.setExpression(insertExp.value());
 			} else {
 				insf.setType(type);
 				insf.setValue(f.get(bean));
@@ -226,8 +289,8 @@ public abstract class AbstractInsert {
 	}
 
 	private void getInsertFieldOptionsOfMap(Map<String, Object> map) {
-		if(!map.keySet().contains(pkName))
-			map.put(pkName,null);
+		if (!map.keySet().contains(pkName))
+			map.put(pkName, null);
 		ArrayList<String> columnList = new ArrayList<String>();
 		for (String s : map.keySet()) {
 			if (s != null && s.length() > 0 && s.charAt(0) != '$') {
@@ -259,16 +322,15 @@ public abstract class AbstractInsert {
 	}
 
 	private void getTableName0(Object bean) {
-		DBTable dbt = bean.getClass().getAnnotation(DBTable.class);
+		if (tableName != null)
+			return;
+		Table dbt = bean.getClass().getAnnotation(Table.class);
 		if (dbt != null) {
 			tableName = dbt.name();
 			standardWhoEnabled = dbt.stdwho();
-			System.out.println("tableName:" + tableName);
-		} 
-		/*
-		 * else { tableName = bean.getClass().getSimpleName().toUpperCase();
-		 * System.out.println("className:" + tableName); }
-		 */
+		} else {
+			tableName = bean.getClass().getSimpleName().toUpperCase();
+		}
 	}
 
 	protected abstract String getInsertExpressionForPk();
@@ -298,8 +360,12 @@ public abstract class AbstractInsert {
 		return new String[0];
 	}
 
-	protected String getSuffix() {
+	protected String getSuffix(String pkName) {
 		return "";
+	}
+
+	public void setReflectionMapper(ReflectionMapper reflectionMapper) {
+		this.reflectionMapper = reflectionMapper;
 	}
 
 }

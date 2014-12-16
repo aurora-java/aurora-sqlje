@@ -21,7 +21,7 @@ public class ParameterParser extends Parser {
 		this.len = source.length();
 	}
 
-	public ParsedSql parse() throws ParserException {
+	public ParsedSql parse(boolean runtime) throws ParserException {
 		ParsedSql ps = new ParsedSql();
 		StringBuilder sb = new StringBuilder(len);
 		int index = -1;
@@ -41,14 +41,14 @@ public class ParameterParser extends Parser {
 				cs.push('{');
 				int i_ = findMatch(cs, source, i + 1);
 				ps.addPara(createParameter(i + 1, i_, c == '@' ? Parameter.OUT
-						: Parameter.NONE));
+						: Parameter.NONE, runtime));
 				lastFlagIndex = i_;
 			} else {
 				sb.append('?');
 				cs.clear();
 				cs.push('{');
 				int i_ = findMatch(cs, source, i);
-				ps.addPara(createParameter(i, i_, Parameter.IN));
+				ps.addPara(createParameter(i, i_, Parameter.IN, runtime));
 				lastFlagIndex = i_;
 			}
 		}
@@ -57,10 +57,15 @@ public class ParameterParser extends Parser {
 		return ps;
 	}
 
-	private Parameter createParameter(int start, int end, int ptype)
-			throws ParserException {
+	public ParsedSql parse() throws ParserException {
+		return parse(false);
+	}
+
+	private Parameter createParameter(int start, int end, int ptype,
+			boolean inruntime) throws ParserException {
 		String exp = source.substring(start, end);
-		checkExpression(exp, start, end);
+		if (!inruntime)
+			;//checkExpression(exp, start, end);
 		Parameter p = new Parameter(ptype, exp);
 		return p;
 	}
@@ -76,7 +81,8 @@ public class ParameterParser extends Parser {
 			parser.setCompilerOptions(options);
 			Expression exp = (Expression) parser.createAST(null);
 		} catch (Exception e) {
-			//this exception will be handled in SqljParser, then it will be translated
+			// this exception will be handled in SqljParser, then it will be
+			// translated
 			throw new ParserException(source, start, end, expression
 					+ " is not a valid expression.");
 		}

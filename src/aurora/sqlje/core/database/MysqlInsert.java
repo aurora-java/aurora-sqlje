@@ -9,18 +9,20 @@ import java.util.Map;
 
 import aurora.sqlje.core.ISqlCallStack;
 
-
 public class MysqlInsert extends AbstractInsert {
-
-
 
 	public MysqlInsert(ISqlCallStack context, Map map, String tableName,
 			String pkName) {
 		super(context, map, tableName, pkName);
 	}
 
-	public MysqlInsert(ISqlCallStack context, Object bean,String tableName,String pkName) {
-		super(context, bean,tableName,pkName);
+	public MysqlInsert(ISqlCallStack context, Object bean) {
+		super(context, bean);
+	}
+
+	public MysqlInsert(ISqlCallStack context, Object bean, String tableName,
+			String pkName) {
+		super(context, bean, tableName, pkName);
 	}
 
 	@Override

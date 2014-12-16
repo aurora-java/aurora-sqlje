@@ -6,7 +6,7 @@ import java.util.List;
 
 import org.eclipse.jdt.core.dom.*;
 
-import aurora.sqlje.core.Autonomous;
+import aurora.sqlje.core.annotation.Autonomous;
 
 /**
  * 将带有@Autonomous标记的方法进行修改

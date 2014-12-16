@@ -9,27 +9,23 @@ import java.util.List;
  */
 public class SQLJE_test {
 	public void hello(CompositeMap param) throws Exception {
-		for(CompositeMap m:#{select * from sys_user}) {
-			System.out.println("Hello "+m.getString("user_name")+" "+m.getInt("user_id"));
-			param.createChild("record").put("user_name", m.get("user_name"));
-		}
-		long id=21;
-		$lock("sys_user","user_id=${id}");
-		List<Map> a=#{select * from sys_user};
-		System.out.println(a);
-		Map am = new java.util.HashMap();
-		am.put("name","Spider");
-		$insert("animals","id",am);
-		
+//		for(CompositeMap m:#{select * from sys_user}.limit(4,9)) {
+//			System.out.println("Hello "+m.getString("user_name")+" "+m.getInt("user_id"));
+//			param.createChild("record").put("user_name", m.get("user_name"));
+//		}
+		aurora.sqlje.test.Animal a = new aurora.sqlje.test.Animal();
+		a.name="cat";
+		$sql.insert(a);
+		System.out.println(a.id);
 	}
 
-	@Autonomous
+	//@Autonomous
 	public int  aaa() throws Exception {
-		try {
-			#{select sysdate from dual};
-		}catch(Exception e) {
-			throw e;
-		}
+		String a="%dd%";
+		int start=2;
+		int end=10;
+		ResultSet rs = #{select * from sys_user where user_name like ${a}}.limit(start,end);
+		for(Map m:#{select * from sys_user where user_name like ${a}}.limit(start+1,end)) {} 
 		return 1;
 	}
 }

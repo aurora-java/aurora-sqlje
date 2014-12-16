@@ -1,14 +1,31 @@
 package aurora.sqlje.core;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+
+import javax.sql.DataSource;
+
 import uncertain.ocm.IObjectCreator;
+import uncertain.ocm.IObjectRegistry;
+import aurora.database.service.IDatabaseServiceFactory;
 
 public class InstanceManager implements IInstanceManager {
 
-	private IObjectCreator ioc;
+	private IObjectRegistry ior;
+	IDatabaseServiceFactory dsf;
 
-	public InstanceManager(IObjectCreator ioc) {
+	public InstanceManager(IObjectRegistry ior, IDatabaseServiceFactory dsf) {
 		super();
-		this.ioc = ioc;
+		this.ior = ior;
+		this.dsf = dsf;
+	}
+
+	public InstanceManager(IObjectRegistry ior) {
+		this.ior = ior;
+	}
+
+	public IObjectRegistry getObjectRegistry() {
+		return ior;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -17,7 +34,7 @@ public class InstanceManager implements IInstanceManager {
 			Class<? extends ISqlCallEnabled> clazz) {
 		T proc;
 		try {
-			proc = (T) ioc.createInstance(clazz);
+			proc = (T) ((IObjectCreator) ior).createInstance(clazz);
 		} catch (Exception e) {
 			e.printStackTrace();
 			return null;
@@ -36,4 +53,19 @@ public class InstanceManager implements IInstanceManager {
 		return proc;
 	}
 
+	public <T extends ISqlCallEnabled> T createInstanceForTransaction(
+			Class<? extends ISqlCallEnabled> clazz) throws SQLException {
+		T inst = createInstance(clazz);
+		ISqlCallStack stack = createCallStack();
+		inst._$setSqlCallStack(stack);
+		return inst;
+	}
+
+	private ISqlCallStack createCallStack() throws SQLException {
+		DataSource ds = dsf.getDataSource();
+		Connection initConnection = ds.getConnection();
+		initConnection.setAutoCommit(false);
+		SqlCallStack callStack = new SqlCallStack(ds, initConnection);
+		return callStack;
+	}
 }
