@@ -113,7 +113,7 @@ public class SqlCallStack implements ISqlCallStack {
 	}
 
 	@Override
-	public void roolback() throws SQLException {
+	public void rollback() throws SQLException {
 		Connection conn = getCurrentConnection();
 		if (conn != null) {
 			conn.rollback();

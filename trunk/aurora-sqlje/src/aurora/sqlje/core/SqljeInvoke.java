@@ -61,10 +61,10 @@ public class SqljeInvoke extends AbstractEntry {
 			}
 			sqlCallStack.commit();
 		} catch (ClassNotFoundException e) {
-			sqlCallStack.roolback();
+			sqlCallStack.rollback();
 			throw new SqljeInitException(procName + " not exists", e);
 		} catch (Exception e) {
-			sqlCallStack.roolback();
+			sqlCallStack.rollback();
 			e.printStackTrace();
 			throw e;
 		} finally {
