@@ -28,6 +28,7 @@ import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.ArrayType;
 import org.eclipse.jdt.core.dom.Assignment;
 import org.eclipse.jdt.core.dom.ChildListPropertyDescriptor;
+import org.eclipse.jdt.core.dom.ChildPropertyDescriptor;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.EnhancedForStatement;
 import org.eclipse.jdt.core.dom.Expression;
@@ -61,6 +62,7 @@ import org.eclipse.jface.text.Document;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.text.edits.TextEdit;
 
+import uncertain.proc.MethodInvoke;
 import aurora.sqlje.core.ResultSetIterator;
 import aurora.sqlje.core.ResultSetUtil;
 import aurora.sqlje.core.SqlFlag;
@@ -77,6 +79,7 @@ import aurora.sqlje.parser.SqlBlock;
 import aurora.sqlje.parser.SqlPosition;
 
 public class AstTransform {
+	private static final String GET_DATABASE_DESCRIPTOR = "getDatabaseDescriptor";
 	private static final String PUSH = "push";
 	public static final String GET_SQLCALL_STACK = "getSqlCallStack";
 	public static final String METHOD_GET = "get";
@@ -282,6 +285,39 @@ public class AstTransform {
 		});
 		lockMethodReplace(lockMiList);
 		insertMethodReplace(insertMiList);
+		for (int i = 0; i < list.size(); i++) {
+			MethodInvocation mi = list.get(i);
+			StructuralPropertyDescriptor spd = mi.getLocationInParent();
+			if (spd.getNodeClass() == MethodInvocation.class
+					&& "expression".equals(spd.getId())) {
+				/**
+				 * parentNode is a MethodInvocation,e.g.
+				 * __sqlje_execute(..).limit(start,end)
+				 */
+				MethodInvocation parentNode = (MethodInvocation) mi.getParent();
+				StructuralPropertyDescriptor spd2 = parentNode
+						.getLocationInParent();
+				MethodInvocation miClone = (MethodInvocation) ASTNode
+						.copySubtree(mi.getAST(), mi);
+				miClone.arguments().addAll(
+						ASTNode.copySubtrees(mi.getAST(),
+								parentNode.arguments()));
+				/**
+				 * replace parentNode with a new methodInvocation, the
+				 * methodInvocation expression is clone from mi ,but, contains
+				 * two extra arguments,these two arguments will be used to
+				 * generate some extra statements.
+				 */
+				if (spd2 instanceof ChildPropertyDescriptor) {
+					parentNode.getParent().setStructuralProperty(spd2, miClone);
+				} else if (spd2 instanceof ChildListPropertyDescriptor) {
+					List<ASTNode> children = (List<ASTNode>) parentNode
+							.getParent().getStructuralProperty(spd2);
+					children.set(children.indexOf(parentNode), miClone);
+				}
+				list.set(i, miClone);
+			}
+		}
 		executeMethodReplace(list);
 	}
 
@@ -328,8 +364,8 @@ public class AstTransform {
 		ParsedSql psql = pp.parse();
 		String stmt_name = parsedSource.genId("ps");
 		AST ast = mi.getAST();
-		defineStatement(ast, psql, stmt_name, list);
-		performParameterBinding(ast, psql, list, stmt_name);
+		defineStatement(ast, psql, stmt_name, list, null);
+		performParameterBinding(ast, psql, list, stmt_name, null);
 		executeStatement(ast, stmt_name, list);
 		pushStmtIntoList(ast, stmt_name, list);
 		return list;
@@ -402,7 +438,7 @@ public class AstTransform {
 			Statement s = findStatement(mi);
 			List<Statement> stmts = (List<Statement>) s.getParent()
 					.getStructuralProperty(s.getLocationInParent());
-			//autoAddSqlFlag(stmts, mi.getAST());//move to nterfaceImpl
+			// autoAddSqlFlag(stmts, mi.getAST());//move to interfaceImpl
 			int index = stmts.indexOf(s);
 			ArrayList<Statement> gene_stmts = generate__sqlj_execute(mi);
 			stmts.addAll(index, gene_stmts);
@@ -444,6 +480,12 @@ public class AstTransform {
 									.toString(), rs_id);
 					mi.getParent().setStructuralProperty(loc,
 							ASTNode.copySubtree(ast, exp));
+					continue;
+				} else if (vds.getType().toString()
+						.equals(java.sql.ResultSet.class.getSimpleName())) {
+					// ResultSet rs = #{..};
+					mi.getParent().setStructuralProperty(loc,
+							ast.newSimpleName(rs_id));
 					continue;
 				}
 				// DataTransfer.transfer1
@@ -487,6 +529,27 @@ public class AstTransform {
 				 * ${...};
 				 */
 				stmts.remove(index);
+			} else if (loc.getNodeClass() == MethodInvocation.class
+					&& "expression".equals(loc.getId())) {
+				/*
+				 * ... ${...}.limit()...
+				 */
+				// // reform,and put it into unHandled list
+				// MethodInvocation parent = (MethodInvocation) mi.getParent();
+				// StructuralPropertyDescriptor spd =
+				// parent.getLocationInParent();
+				// MethodInvocation cloneMi = (MethodInvocation) ASTNode
+				// .copySubtree(ast, mi);
+				// if (spd instanceof ChildListPropertyDescriptor) {
+				// //
+				// } else if (spd instanceof ChildPropertyDescriptor) {
+				// parent.getParent().setStructuralProperty(spd, cloneMi);
+				// }
+				// // remove already generated statements,(those statements will
+				// // generate again later)
+				// stmts.removeAll(gene_stmts);
+				// unHandled.add(cloneMi);
+				// System.out.println(loc);
 			} else {
 				System.err.println(mi + "\n\t" + loc);
 			}
@@ -638,7 +701,7 @@ public class AstTransform {
 	}
 
 	void defineStatement(AST ast, ParsedSql ps, String stmt_name,
-			ArrayList<Statement> stmt_list) {
+			ArrayList<Statement> stmt_list, LimitOption limitOption) {
 		String stmt_type = java.sql.PreparedStatement.class.getSimpleName();
 		String prepare_method = METHOD_PREPARE_STATEMENT;
 		if (ps.hasOutputParameter()) {
@@ -648,6 +711,19 @@ public class AstTransform {
 
 		Expression sqlExpression = createSqlLiteralStatements(ast, ps,
 				stmt_list);
+		String sqlStringId = parsedSource.genId("sql");
+		stmt_list.add(ASTNodeUtil.newVariableDeclarationStatement(ast,
+				String.class.getSimpleName(), ASTNodeUtil
+						.newVariableDeclarationFragment(ast, sqlStringId,
+								sqlExpression)));
+		if (limitOption != null) {
+			Assignment assn = ast.newAssignment();
+			assn.setLeftHandSide(ast.newSimpleName(sqlStringId));
+			assn.setRightHandSide(ASTNodeUtil.newMethodInvocation(ast,
+					ast.newSimpleName(SQL_FLAG), SqlFlag.PREPARE_LIMIT_SQL,
+					ast.newSimpleName(sqlStringId)));
+			stmt_list.add(ast.newExpressionStatement(assn));
+		}
 		// PreparedStatement ps =
 		// getSqlCallStack().getCurrentConnection().preparedStatement(sql);
 		VariableDeclarationStatement vds = newVariableDeclarationStatement(
@@ -663,12 +739,16 @@ public class AstTransform {
 										newMethodInvocation(ast, null,
 												GET_SQLCALL_STACK),
 										METHOD_GET_CONNECTION), prepare_method,
-								sqlExpression)));
+								ast.newSimpleName(sqlStringId))));
 		stmt_list.add(vds);
 	}
 
 	void executeStatement(AST ast, String stmt_name,
 			ArrayList<Statement> stmt_list) {
+		// clear sql flag
+		MethodInvocation mi = newMethodInvocation(ast,
+				ast.newSimpleName(SQL_FLAG), SqlFlag.CLEAR);
+		stmt_list.add(ast.newExpressionStatement(mi));
 		MethodInvocation mi2 = newMethodInvocation(ast,
 				ast.newSimpleName(stmt_name), METHOD_EXECUTE);
 		stmt_list.add(ast.newExpressionStatement(mi2));
@@ -676,18 +756,29 @@ public class AstTransform {
 
 	ArrayList<Statement> generate__sqlj_execute(MethodInvocation mi)
 			throws ParserException {
+		StructuralPropertyDescriptor loc = mi.getLocationInParent();
+		LimitOption limitOption = null;
 		List<Expression> params = mi.arguments();
+		if (params.size() == 4) {
+			// contains limit arguments
+			limitOption = new LimitOption(
+					(Expression) ASTNode.copySubtree(mi.getAST(), params.get(2)),
+					(Expression) ASTNode.copySubtree(mi.getAST(), params.get(3)));
+		}
 		int sqlid = Integer.parseInt(params.get(0).toString());
 		String stmt_name = parsedSource.genId("ps");
 		AST ast = mi.getAST();
 		SqlBlock sqljblock = parsedSource.getSqlById(sqlid);
+
 		ParsedSql parsedSql = sqljblock.getParsedSql();
 
 		ArrayList<Statement> generated_statements = new ArrayList<Statement>();
 		// define Statement
-		defineStatement(ast, parsedSql, stmt_name, generated_statements);
+		defineStatement(ast, parsedSql, stmt_name, generated_statements,
+				limitOption);
 		// bind parameters
-		performParameterBinding(ast, parsedSql, generated_statements, stmt_name);
+		performParameterBinding(ast, parsedSql, generated_statements,
+				stmt_name, limitOption);
 		// execute
 		executeStatement(ast, stmt_name, generated_statements);
 		// set UPDATE_COUNT flag
@@ -788,7 +879,7 @@ public class AstTransform {
 	}
 
 	void performParameterBinding(AST ast, ParsedSql psql,
-			ArrayList<Statement> list, String stmt_name) {
+			ArrayList<Statement> list, String stmt_name, LimitOption limitOption) {
 		int i = 1;
 		// parameter binding
 		for (Parameter p : psql.getBindParameters()) {
@@ -814,6 +905,13 @@ public class AstTransform {
 				list.add(ast.newExpressionStatement(mi1));
 			}
 			i++;
+		}
+		if (limitOption != null) {
+			Expression callBindExp = ASTNodeUtil.newMethodInvocation(ast,
+					ast.newSimpleName(SQL_FLAG), SqlFlag.PREPARE_LIMIT_PARA,
+					ast.newSimpleName(stmt_name), limitOption.start,
+					limitOption.end, ast.newNumberLiteral("" + i));
+			list.add(ast.newExpressionStatement(callBindExp));
 		}
 	}
 

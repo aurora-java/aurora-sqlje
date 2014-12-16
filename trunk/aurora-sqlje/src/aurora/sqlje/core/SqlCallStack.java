@@ -10,6 +10,8 @@ import java.util.Map;
 
 import javax.sql.DataSource;
 
+import aurora.sqlje.core.database.DatabaseDescriptor;
+import aurora.sqlje.core.database.IDatabaseDescriptor;
 import uncertain.composite.CompositeMap;
 
 public class SqlCallStack implements ISqlCallStack {
@@ -18,12 +20,16 @@ public class SqlCallStack implements ISqlCallStack {
 	private Map<Connection, ArrayList<Object>> resourceMap = new HashMap<Connection, ArrayList<Object>>();
 
 	private DataSource dataSource;
+	private DatabaseDescriptor dbDesriptor;
 
-	public SqlCallStack(DataSource ds, Connection initConnection) {
+	public SqlCallStack(DataSource ds, Connection initConnection)
+			throws SQLException {
 		super();
 		if (initConnection == null)
 			throw new NullPointerException("initConnection can't be null.");
 		this.dataSource = ds;
+		dbDesriptor = new DatabaseDescriptor();
+		dbDesriptor.init(initConnection.getMetaData());
 		connectionStack.push(initConnection);
 	}
 
@@ -89,6 +95,34 @@ public class SqlCallStack implements ISqlCallStack {
 	@Override
 	public void setContextData(CompositeMap data) {
 		this.contextData = data;
+	}
+
+	@Override
+	public void cleanUp() throws SQLException {
+		Connection conn = getCurrentConnection();
+		if (conn != null)
+			free(conn);
+	}
+
+	@Override
+	public void commit() throws SQLException {
+		Connection conn = getCurrentConnection();
+		if (conn != null) {
+			conn.commit();
+		}
+	}
+
+	@Override
+	public void roolback() throws SQLException {
+		Connection conn = getCurrentConnection();
+		if (conn != null) {
+			conn.rollback();
+		}
+	}
+
+	@Override
+	public IDatabaseDescriptor getDatabaseDescriptor() {
+		return dbDesriptor;
 	}
 
 }

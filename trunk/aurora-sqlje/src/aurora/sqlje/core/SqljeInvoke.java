@@ -37,6 +37,7 @@ public class SqljeInvoke extends AbstractEntry {
 		sqlServiceContext.initConnection(reg, null);
 		ISqlCallStack sqlCallStack = new SqlCallStack(dsf.getDataSource(),
 				sqlServiceContext.getConnection());
+		sqlCallStack.setContextData(context);
 		if (procName == null)
 			throw BuiltinExceptionFactory.createAttributeMissing(this,
 					"procName");
@@ -58,14 +59,16 @@ public class SqljeInvoke extends AbstractEntry {
 			} else {
 				throw new Exception("Illegal SQLJE proc : " + procName);
 			}
-
+			sqlCallStack.commit();
 		} catch (ClassNotFoundException e) {
+			sqlCallStack.roolback();
 			throw new SqljeInitException(procName + " not exists", e);
 		} catch (Exception e) {
+			sqlCallStack.roolback();
 			e.printStackTrace();
 			throw e;
 		} finally {
-			sqlCallStack.free(sqlCallStack.getCurrentConnection());
+			sqlCallStack.cleanUp();
 		}
 	}
 

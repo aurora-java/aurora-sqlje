@@ -47,8 +47,7 @@ public class InterfaceImpl {
 
 		List<BodyDeclaration> bodys = typeDec.bodyDeclarations();
 
-		//variableTypeMap.put(Integer.class, AstTransform.UPDATE_COUNT);
-
+		// variableTypeMap.put(Integer.class, AstTransform.UPDATE_COUNT);
 
 		List<MethodDeclaration> methods = new ArrayList<MethodDeclaration>();
 		for (Method m : ISqlCallEnabled.class.getMethods()) {
@@ -59,7 +58,7 @@ public class InterfaceImpl {
 			md.setBody(body);
 			methods.add(md);
 		}
-		for(Class<?> c:variableTypeMap.keySet()) {
+		for (Class<?> c : variableTypeMap.keySet()) {
 			createField(typeDec, c, variableTypeMap.get(c), false);
 		}
 		createSqlFlag(ast, typeDec);
@@ -76,23 +75,23 @@ public class InterfaceImpl {
 		fd.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD));
 		td.bodyDeclarations().add(fd);
 	}
-	
+
 	/**
-	 *  SqlFlag $sql = new SqlFlag();
+	 * SqlFlag $sql = new SqlFlag();
 	 * 
 	 * @param ast
 	 * @return
 	 */
-	void createSqlFlag(AST ast,TypeDeclaration td) {
+	void createSqlFlag(AST ast, TypeDeclaration td) {
 		String sqlFlagClassName = SqlFlag.class.getSimpleName();
 
-		FieldDeclaration fd = ast.newFieldDeclaration(ASTNodeUtil.newVariableDeclarationFragment(ast,
-								AstTransform.SQL_FLAG, ASTNodeUtil.newClassInstance(ast,
-										sqlFlagClassName)));
+		FieldDeclaration fd = ast.newFieldDeclaration(ASTNodeUtil
+				.newVariableDeclarationFragment(ast, AstTransform.SQL_FLAG,
+						ASTNodeUtil.newClassInstance(ast, sqlFlagClassName)));
 		fd.setType(newSimpleType(ast, sqlFlagClassName));
 		fd.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD));
 		td.bodyDeclarations().add(fd);
-		//return vds;
+		// return vds;
 	}
 
 	public static MethodDeclaration createFromMethod(AST ast, Method m) {
@@ -121,15 +120,26 @@ public class InterfaceImpl {
 		List<SingleVariableDeclaration> params = md.parameters();
 		for (Class<?> type : m.getParameterTypes()) {
 			String varName = getVarName(type, true);
-			block.statements().add(
-					ast.newExpressionStatement(ASTNodeUtil.newSimpleAssignment(
-							ast, varName, params.get(i).getName().toString())));
+			block.statements()
+					.add(ast.newExpressionStatement(ASTNodeUtil
+							.newSimpleAssignment(ast, varName, params.get(i++)
+									.getName().toString())));
 		}
 		if (m.getReturnType() != void.class) {
+			// getter
 			String retName = getVarName(m.getReturnType(), true);
 			ReturnStatement rs = ast.newReturnStatement();
 			rs.setExpression(ast.newSimpleName(retName));
 			block.statements().add(rs);
+		} else {
+			// setter
+			Class<?> type = m.getParameterTypes()[0];
+			String simpleName = getNormalName(type);
+			block.statements().add(
+					ast.newExpressionStatement(ASTNodeUtil.newMethodInvocation(
+							ast, ast.newSimpleName(AstTransform.SQL_FLAG),
+							"set" + simpleName,
+							ast.newSimpleName(getVarName(type, false)))));
 		}
 		return block;
 	}
@@ -138,18 +148,27 @@ public class InterfaceImpl {
 		String varName = variableTypeMap.get(type);
 
 		if (varName == null && create) {
-			String typeName = type.getSimpleName();
-			int idx = 0;
-			// interface maybe
-			if (typeName.charAt(0) == 'I'
-					&& Character.isUpperCase(typeName.charAt(1)))
-				idx = 1;
-			typeName = Character.toLowerCase(typeName.charAt(idx))
-					+ typeName.substring(idx + 1);
+			String typeName = getNormalName(type);
+			typeName = Character.toLowerCase(typeName.charAt(0))
+					+ typeName.substring(1);
 			varName = "_$sqlje_" + typeName;
 			variableTypeMap.put(type, varName);
 		}
 
 		return varName;
+	}
+
+	/**
+	 * get the simple class name exclude leading 'I' (interface)
+	 * 
+	 * @param type
+	 * @return
+	 */
+	private String getNormalName(Class<?> type) {
+		String simpleName = type.getSimpleName();
+		if (simpleName.charAt(0) == 'I'
+				&& Character.isUpperCase(simpleName.charAt(1)))
+			simpleName = simpleName.substring(1);
+		return simpleName;
 	}
 }
