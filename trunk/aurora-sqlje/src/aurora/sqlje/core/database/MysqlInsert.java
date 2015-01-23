@@ -9,7 +9,7 @@ import java.util.Map;
 
 import aurora.sqlje.core.ISqlCallStack;
 
-public class MysqlInsert extends AbstractInsert {
+public class MysqlInsert extends AbstractInsertOperation {
 
 	public MysqlInsert(ISqlCallStack context, Map map, String tableName,
 			String pkName) {
@@ -35,15 +35,15 @@ public class MysqlInsert extends AbstractInsert {
 		return null;
 	}
 
-	@Override
-	protected String getDateExpression() {
-		return "curdate()";
-	}
-
-	@Override
-	protected String getTimeExpression() {
-		return "now()";
-	}
+//	@Override
+//	protected String getDateExpression() {
+//		return "curdate()";
+//	}
+//
+//	@Override
+//	protected String getTimeExpression() {
+//		return "now()";
+//	}
 
 	@Override
 	protected String getInsertExpressionForPk() {

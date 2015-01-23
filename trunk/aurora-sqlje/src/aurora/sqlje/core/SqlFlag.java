@@ -6,7 +6,8 @@ import java.util.Map;
 
 import uncertain.ocm.IObjectRegistry;
 import uncertain.ocm.OCManager;
-import aurora.sqlje.core.database.AbstractInsert;
+import aurora.sqlje.core.database.AbstractInsertOperation;
+import aurora.sqlje.core.database.DeleteOperation;
 import aurora.sqlje.core.database.IDatabaseDescriptor;
 import aurora.sqlje.core.database.MysqlInsert;
 import aurora.sqlje.core.database.OracleInsert;
@@ -15,34 +16,26 @@ public class SqlFlag {
 	public static final String PREPARE_LIMIT_SQL = "_$prepareLimitSql";
 	public static final String PREPARE_LIMIT_PARA = "_$prepareLimitParaBinding";
 
-	public IInstanceManager instManager;
-	public ISqlCallStack callStack;
 
 	public static final String CLEAR = "clear";
 	public int UPDATECOUNT = 0;
+	private ISqlCallEnabled self_sqlje;
 
-	public SqlFlag() {
-
+	public SqlFlag(ISqlCallEnabled self_sqlje) {
+		this.self_sqlje=self_sqlje;
 	}
 
-	public void setInstanceManager(IInstanceManager instMgr) {
-		this.instManager = instMgr;
-	}
-
-	public void setSqlCallStack(ISqlCallStack callStack) {
-		this.callStack = callStack;
-	}
 
 	public void clear() {
 
 	}
 
-	public int rowrount() {
+	public int rowcount() {
 		return UPDATECOUNT;
 	}
 
 	public String _$prepareLimitSql(String osql) {
-		IDatabaseDescriptor dbDescriptor = callStack.getDatabaseDescriptor();
+		IDatabaseDescriptor dbDescriptor = self_sqlje.getSqlCallStack().getDatabaseDescriptor();
 		StringBuilder sb = new StringBuilder(osql.length() + 100);
 		if (!dbDescriptor.isOracle()) {
 			sb.append(osql).append("  LIMIT ?,?");
@@ -57,7 +50,7 @@ public class SqlFlag {
 
 	public void _$prepareLimitParaBinding(PreparedStatement ps, int start,
 			int end, int startIdx) throws SQLException {
-		IDatabaseDescriptor dbDesc = callStack.getDatabaseDescriptor();
+		IDatabaseDescriptor dbDesc = self_sqlje.getSqlCallStack().getDatabaseDescriptor();
 		if (dbDesc.isOracle()) {
 			ps.setInt(startIdx, end);
 			ps.setInt(startIdx + 1, start);
@@ -73,10 +66,11 @@ public class SqlFlag {
 
 	public void insert(Object bean, String tableName, String pkName)
 			throws Exception {
-		IObjectRegistry reg = ((InstanceManager) instManager)
+		IObjectRegistry reg = ((InstanceManager) self_sqlje.getInstanceManager())
 				.getObjectRegistry();
+		ISqlCallStack callStack = self_sqlje.getSqlCallStack();
 		IDatabaseDescriptor dbDesc = callStack.getDatabaseDescriptor();
-		AbstractInsert insert = null;
+		AbstractInsertOperation insert = null;
 		if (dbDesc.isOracle())
 			insert = new OracleInsert(callStack, bean, tableName, pkName);
 		else
@@ -84,15 +78,16 @@ public class SqlFlag {
 
 		OCManager ocm = (OCManager) reg.getInstanceOfType(OCManager.class);
 		insert.setReflectionMapper(ocm.getReflectionMapper());
-		insert.insert();
+		insert.doInsert();
 	}
 
 	public void insert(Map map, String tableName, String pkName)
 			throws Exception {
-		IObjectRegistry reg = ((InstanceManager) instManager)
+		IObjectRegistry reg = ((InstanceManager) self_sqlje.getInstanceManager())
 				.getObjectRegistry();
+		ISqlCallStack callStack = self_sqlje.getSqlCallStack();
 		IDatabaseDescriptor dbDesc = callStack.getDatabaseDescriptor();
-		AbstractInsert insert = null;
+		AbstractInsertOperation insert = null;
 		if (dbDesc.isOracle())
 			insert = new OracleInsert(callStack, map, tableName, pkName);
 		else
@@ -100,7 +95,16 @@ public class SqlFlag {
 
 		OCManager ocm = (OCManager) reg.getInstanceOfType(OCManager.class);
 		insert.setReflectionMapper(ocm.getReflectionMapper());
-		insert.insert();
+		insert.doInsert();
+	}
+
+	public void delete(String tableName, String pkName, Object pk)
+			throws Exception {
+		new DeleteOperation(self_sqlje.getSqlCallStack(), tableName, pkName, pk).doDelete();
+	}
+
+	public void delete(Object bean) throws Exception {
+		new DeleteOperation(self_sqlje.getSqlCallStack(), bean).doDelete();
 	}
 
 }

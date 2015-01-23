@@ -34,7 +34,10 @@ public class ResultSetIterator<T> implements Iterable<T>, Iterator<T> {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	void createCurrent() {
 		try {
-			if (Map.class.isAssignableFrom(clazz)) {
+			if (DataTransfer.supported_type_list.contains(clazz)) {
+				current = (T) DataTransfer.verboseGet(rs, column_names.get(0),
+						clazz);
+			} else if (Map.class.isAssignableFrom(clazz)) {
 				if (!clazz.isInterface()) {
 					current = clazz.newInstance();
 				} else

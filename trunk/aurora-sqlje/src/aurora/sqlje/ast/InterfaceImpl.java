@@ -87,7 +87,7 @@ public class InterfaceImpl {
 
 		FieldDeclaration fd = ast.newFieldDeclaration(ASTNodeUtil
 				.newVariableDeclarationFragment(ast, AstTransform.SQL_FLAG,
-						ASTNodeUtil.newClassInstance(ast, sqlFlagClassName)));
+						ASTNodeUtil.newClassInstance(ast, sqlFlagClassName,ast.newThisExpression())));
 		fd.setType(newSimpleType(ast, sqlFlagClassName));
 		fd.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD));
 		td.bodyDeclarations().add(fd);
@@ -135,11 +135,11 @@ public class InterfaceImpl {
 			// setter
 			Class<?> type = m.getParameterTypes()[0];
 			String simpleName = getNormalName(type);
-			block.statements().add(
-					ast.newExpressionStatement(ASTNodeUtil.newMethodInvocation(
-							ast, ast.newSimpleName(AstTransform.SQL_FLAG),
-							"set" + simpleName,
-							ast.newSimpleName(getVarName(type, false)))));
+//			block.statements().add(
+//					ast.newExpressionStatement(ASTNodeUtil.newMethodInvocation(
+//							ast, ast.newSimpleName(AstTransform.SQL_FLAG),
+//							"set" + simpleName,
+//							ast.newSimpleName(getVarName(type, false)))));
 		}
 		return block;
 	}

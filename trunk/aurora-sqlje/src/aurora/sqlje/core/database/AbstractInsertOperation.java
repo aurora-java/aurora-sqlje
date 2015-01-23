@@ -23,7 +23,7 @@ import aurora.sqlje.parser.Parameter;
 import aurora.sqlje.parser.ParsedSql;
 import aurora.sqlje.parser.SqlBlock;
 
-public abstract class AbstractInsert {
+public abstract class AbstractInsertOperation {
 
 	static String createdByField = "CREATED_BY";
 	static String creationDateField = "CREATION_DATE";
@@ -46,7 +46,7 @@ public abstract class AbstractInsert {
 	private ParsedSql parsedSql;
 	private ReflectionMapper reflectionMapper;
 
-	public AbstractInsert(ISqlCallStack context, Object bean, String tableName,
+	public AbstractInsertOperation(ISqlCallStack context, Object bean, String tableName,
 			String pkName) {
 		super();
 		this.context = context;
@@ -55,11 +55,11 @@ public abstract class AbstractInsert {
 		this.pkName = pkName;
 	}
 
-	public AbstractInsert(ISqlCallStack context, Object bean) {
+	public AbstractInsertOperation(ISqlCallStack context, Object bean) {
 		this(context, bean, null, null);
 	}
 
-	public AbstractInsert(ISqlCallStack context, Map map, String tableName,
+	public AbstractInsertOperation(ISqlCallStack context, Map map, String tableName,
 			String pkName) {
 		super();
 		this.context = context;
@@ -73,7 +73,7 @@ public abstract class AbstractInsert {
 	 * 
 	 * @return primary key
 	 */
-	public Object insert() throws SQLException, Exception {
+	public Object doInsert() throws SQLException, Exception {
 		Connection conn = context.getCurrentConnection();
 		getInsertFieldOptions();
 		String _sql_ = createInsertSql();
@@ -82,13 +82,17 @@ public abstract class AbstractInsert {
 		sqlb.setSql(sql);
 		parsedSql = sqlb.getParsedSql();
 		sql = parsedSql.toStringLiteral();
-		System.out.println(sql);
+		log(sql);
 		PreparedStatement ps = createStatement(conn, sql);
 		performParameterBinding(ps);
 		Object pk = execute(ps);
-		// System.out.println("pk:" + pk);
+		log("return pk :" + pk);
 		setPrimaryKeyBack(pk);
 		return pk;
+	}
+
+	private void log(Object msg) {
+		//System.out.println("[INSERT]"+msg);
 	}
 
 	private void setPrimaryKeyBack(Object pk) {
@@ -120,20 +124,20 @@ public abstract class AbstractInsert {
 		int pkIndex = -1;
 		for (int i = 0; i < params.size(); i++) {
 			Parameter p = params.get(i);
-			System.out.println(p);
+			log(p);
 			if (p.getType() != Parameter.OUT) {
 				InsertField insf = insertFieldOptions.get(p.getExpression());
 				if (insf != null) {
 					if (insf.isParamBinding()) {
-						System.out.println("\t" + insf.getValue());
+						log("\t" + insf.getValue());
 						ps.setObject(i + 1, insf.getValue());
 					} else {
-						System.out.println("\t" + insf.getExpression());
+						log("\t" + insf.getExpression());
 						ps.setObject(i + 1, getFieldValue(p.getExpression()));
 					}
 				} else {
 					Object v = getFieldValue(p.getExpression());
-					System.out.println("\t" + v);
+					log("\t" + v);
 					ps.setObject(i + 1, v);
 				}
 			} else
@@ -154,9 +158,13 @@ public abstract class AbstractInsert {
 		return null;
 	}
 
-	protected abstract String getDateExpression();
+	protected String getDateExpression() {
+		return "CURRENT_DATE";
+	}
 
-	protected abstract String getTimeExpression();
+	protected String getTimeExpression() {
+		return "CURRENT_TIMESTAMP";
+	}
 
 	protected String getPrefix() {
 		return "";
@@ -255,6 +263,7 @@ public abstract class AbstractInsert {
 			Class<?> type = f.getType();
 			if (!DataTransfer.supported_type_list.contains(type))
 				continue;
+			
 			String name = f.getName();
 			if (stdwho_fields_list.contains(name.toUpperCase()))
 				continue;
@@ -307,8 +316,8 @@ public abstract class AbstractInsert {
 		columns = columnList.toArray(new String[columnList.size()]);
 		for (String c : columns) {
 			InsertField insf = new InsertField();
+			insf.setName(c);
 			if (c.equals(pkName)) {
-				insf.setName(c);
 				insf.setParaBinding(false);
 				insf.setExpression(getInsertExpressionForPk());
 			} else {
