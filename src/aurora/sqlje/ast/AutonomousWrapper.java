@@ -164,7 +164,8 @@ public class AutonomousWrapper {
 		});
 	}
 
-	private boolean isAutonomousAnnotation(IExtendedModifier em) {
+
+	public static boolean isAutonomousAnnotation(IExtendedModifier em) {
 		if (em instanceof MarkerAnnotation) {
 			MarkerAnnotation ma = (MarkerAnnotation) em;
 			// Method is marked as Autonomous

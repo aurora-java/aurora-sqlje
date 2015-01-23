@@ -15,7 +15,7 @@ import aurora.sqlje.core.ISqlCallStack;
  * @author jessen
  * 
  */
-public class OracleInsert extends AbstractInsert {
+public class OracleInsert extends AbstractInsertOperation {
 	private int pkIndex;
 
 	public OracleInsert(ISqlCallStack context, Map map, String tableName,
@@ -60,15 +60,15 @@ public class OracleInsert extends AbstractInsert {
 		return " RETURNING " + getPkField() + " INTO ${@" + pkName + "}; END;";
 	}
 
-	@Override
-	protected String getDateExpression() {
-		return "trunc(sysdate)";
-	}
-
-	@Override
-	protected String getTimeExpression() {
-		return "sysdate";
-	}
+//	@Override
+//	protected String getDateExpression() {
+//		return "trunc(sysdate)";
+//	}
+//
+//	@Override
+//	protected String getTimeExpression() {
+//		return "sysdate";
+//	}
 
 	@Override
 	protected String getInsertExpressionForPk() {

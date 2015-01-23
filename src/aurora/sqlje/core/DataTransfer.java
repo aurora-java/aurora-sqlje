@@ -84,31 +84,38 @@ public class DataTransfer {
 		return map;
 	}
 
-	public static <T> T transferAll(Class<? extends List> clazz, Class eleClazz,
-			ResultSet rs) throws Exception {
+	public static <T> T transferAll(Class<? extends List> clazz,
+			Class eleClazz, ResultSet rs) throws Exception {
 		List collection = null;
 		if (clazz.isInterface())
 			collection = new ArrayList();
 		else
 			collection = clazz.newInstance();
 		List<String> column_names = getColumnNames(rs);
-		while (rs.next()) { 
-			if (Map.class.isAssignableFrom(eleClazz)) {
-				Map map = null;
-				if (eleClazz.isInterface())
-					map = new HashMap();
-				else
-					map = (Map) eleClazz.newInstance();
-				fillMap(map, rs, column_names);
-				collection.add(map);
-			} else {
-				Object bean = eleClazz.newInstance();
-				fillBean(bean, rs, column_names);
-				collection.add(bean);
+		if (column_names.size() == 1 && supported_type_list.contains(eleClazz)) {
+			String name = column_names.get(0);
+			while (rs.next()) {
+				collection.add(verboseGet(rs, name, eleClazz));
 			}
+		} else {
+			while (rs.next()) {
+				if (Map.class.isAssignableFrom(eleClazz)) {
+					Map map = null;
+					if (eleClazz.isInterface())
+						map = new HashMap();
+					else
+						map = (Map) eleClazz.newInstance();
+					fillMap(map, rs, column_names);
+					collection.add(map);
+				} else {
+					Object bean = eleClazz.newInstance();
+					fillBean(bean, rs, column_names);
+					collection.add(bean);
+				}
 
+			}
 		}
-		return (T)collection;
+		return (T) collection;
 	}
 
 	public static List<String> getColumnNames(ResultSet rs) throws SQLException {

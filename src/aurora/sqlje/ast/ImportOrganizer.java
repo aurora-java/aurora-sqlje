@@ -9,13 +9,14 @@ import java.util.Set;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.CompilationUnit;
+import org.eclipse.jdt.core.dom.IExtendedModifier;
 import org.eclipse.jdt.core.dom.ImportDeclaration;
+import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.VariableDeclarationStatement;
 
 import aurora.sqlje.core.ISqlCallEnabled;
 import aurora.sqlje.exception.ParserException;
-
 
 public class ImportOrganizer {
 	/**
@@ -24,15 +25,16 @@ public class ImportOrganizer {
 	 */
 	private static HashMap<String, Boolean> required = new HashMap<String, Boolean>();
 	static {
-		required.put(ResultSet.class.getPackage().getName(), true);
-		required.put(ISqlCallEnabled.class.getPackage().getName(), true);
-		required.put(ParserException.class.getPackage().getName(), true);
-		required.put(java.util.Map.class.getName(), false);
+		required.put(ResultSet.class.getPackage().getName(), true);//java.sql.*
+		required.put(ISqlCallEnabled.class.getPackage().getName(), true);//aurora.sqlje.core.*
+		required.put(ParserException.class.getPackage().getName(), true);//aurora.sqlje.exception.*
+		required.put(java.util.Map.class.getName(), false);//java.util.Map
+		required.put(java.util.List.class.getName(), false);//java.util.List
 		try {
-			Class cls=Class.forName("uncertain.composite.CompositeMap");
-			required.put(cls.getPackage().getName(), true);
-		}catch(Exception e) {
-			
+			Class cls = Class.forName("uncertain.composite.CompositeMap");
+			required.put(cls.getPackage().getName(), true);//uncertain.composite.*
+		} catch (Exception e) {
+
 		}
 	}
 	private List<ImportDeclaration> importList;
@@ -55,8 +57,8 @@ public class ImportOrganizer {
 			importList.add(id);
 		}
 	}
-	
-	private void collectFavouriteClass(CompilationUnit unit) {
+
+	private void detectSpecial(CompilationUnit unit) {
 		unit.accept(new ASTVisitor() {
 
 			@Override
@@ -68,7 +70,17 @@ public class ImportOrganizer {
 			public boolean visit(VariableDeclarationStatement node) {
 				return super.visit(node);
 			}
-			
+
+			public boolean visit(MethodDeclaration node) {
+				List<IExtendedModifier> modifiers = node.modifiers();
+				for (IExtendedModifier em : modifiers) {
+					if (AutonomousWrapper.isAutonomousAnnotation(em)) {
+						
+					}
+				}
+				return super.visit(node);
+			}
+
 		});
 	}
 
