@@ -9,6 +9,7 @@ import uncertain.ocm.OCManager;
 import aurora.sqlje.core.database.AbstractInsertOperation;
 import aurora.sqlje.core.database.DeleteOperation;
 import aurora.sqlje.core.database.IDatabaseDescriptor;
+import aurora.sqlje.core.database.LockGenerator;
 import aurora.sqlje.core.database.MysqlInsert;
 import aurora.sqlje.core.database.OracleInsert;
 
@@ -16,15 +17,13 @@ public class SqlFlag {
 	public static final String PREPARE_LIMIT_SQL = "_$prepareLimitSql";
 	public static final String PREPARE_LIMIT_PARA = "_$prepareLimitParaBinding";
 
-
 	public static final String CLEAR = "clear";
 	public int UPDATECOUNT = 0;
 	private ISqlCallEnabled self_sqlje;
 
 	public SqlFlag(ISqlCallEnabled self_sqlje) {
-		this.self_sqlje=self_sqlje;
+		this.self_sqlje = self_sqlje;
 	}
-
 
 	public void clear() {
 
@@ -35,7 +34,8 @@ public class SqlFlag {
 	}
 
 	public String _$prepareLimitSql(String osql) {
-		IDatabaseDescriptor dbDescriptor = self_sqlje.getSqlCallStack().getDatabaseDescriptor();
+		IDatabaseDescriptor dbDescriptor = self_sqlje.getSqlCallStack()
+				.getDatabaseDescriptor();
 		StringBuilder sb = new StringBuilder(osql.length() + 100);
 		if (!dbDescriptor.isOracle()) {
 			sb.append(osql).append("  LIMIT ?,?");
@@ -50,7 +50,8 @@ public class SqlFlag {
 
 	public void _$prepareLimitParaBinding(PreparedStatement ps, int start,
 			int end, int startIdx) throws SQLException {
-		IDatabaseDescriptor dbDesc = self_sqlje.getSqlCallStack().getDatabaseDescriptor();
+		IDatabaseDescriptor dbDesc = self_sqlje.getSqlCallStack()
+				.getDatabaseDescriptor();
 		if (dbDesc.isOracle()) {
 			ps.setInt(startIdx, end);
 			ps.setInt(startIdx + 1, start);
@@ -60,14 +61,26 @@ public class SqlFlag {
 		}
 	}
 
+	// ///lock
+
+	public String lock(String tableName, String whereClause) throws Exception {
+		IDatabaseDescriptor dbDescriptor = self_sqlje.getSqlCallStack()
+				.getDatabaseDescriptor();
+		if (dbDescriptor.isMysql() || dbDescriptor.isOracle())
+			return LockGenerator.generateSelectForUpdateSql(tableName, whereClause);
+		return LockGenerator.generateWithLockSql(tableName, whereClause);
+	}
+
+	// ///end lock
+
 	public void insert(Object bean) throws Exception {
 		insert(bean, null, null);
 	}
 
 	public void insert(Object bean, String tableName, String pkName)
 			throws Exception {
-		IObjectRegistry reg = ((InstanceManager) self_sqlje.getInstanceManager())
-				.getObjectRegistry();
+		IObjectRegistry reg = ((InstanceManager) self_sqlje
+				.getInstanceManager()).getObjectRegistry();
 		ISqlCallStack callStack = self_sqlje.getSqlCallStack();
 		IDatabaseDescriptor dbDesc = callStack.getDatabaseDescriptor();
 		AbstractInsertOperation insert = null;
@@ -83,8 +96,8 @@ public class SqlFlag {
 
 	public void insert(Map map, String tableName, String pkName)
 			throws Exception {
-		IObjectRegistry reg = ((InstanceManager) self_sqlje.getInstanceManager())
-				.getObjectRegistry();
+		IObjectRegistry reg = ((InstanceManager) self_sqlje
+				.getInstanceManager()).getObjectRegistry();
 		ISqlCallStack callStack = self_sqlje.getSqlCallStack();
 		IDatabaseDescriptor dbDesc = callStack.getDatabaseDescriptor();
 		AbstractInsertOperation insert = null;
@@ -100,7 +113,8 @@ public class SqlFlag {
 
 	public void delete(String tableName, String pkName, Object pk)
 			throws Exception {
-		new DeleteOperation(self_sqlje.getSqlCallStack(), tableName, pkName, pk).doDelete();
+		new DeleteOperation(self_sqlje.getSqlCallStack(), tableName, pkName, pk)
+				.doDelete();
 	}
 
 	public void delete(Object bean) throws Exception {
