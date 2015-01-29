@@ -21,7 +21,6 @@ import aurora.sqlje.parser.SqljeParser;
 public class CliMain {
 	static boolean verbos = false;
 	static String charset = "UTF-8";
-	static String dbName = "oracle";
 	static List<String> exts = Arrays.asList(new String[] { "sqlje" });
 
 	@SuppressWarnings("static-access")
@@ -29,8 +28,6 @@ public class CliMain {
 		Options opts = new Options();
 		opts.addOption(OptionBuilder.withArgName("charset").hasArg()
 				.withDescription("charset of SQLJE source file").create('c'));
-		opts.addOption(OptionBuilder.withArgName("database").hasArg()
-				.withDescription("target database name").create("db"));
 		opts.addOption(OptionBuilder.withArgName("file").hasArg()
 				.withDescription("path of SQLJE source file").create('f'));
 		opts.addOption(OptionBuilder.withArgName("directory").hasArg()
@@ -55,11 +52,6 @@ public class CliMain {
 		if (cl.hasOption('e')) {
 			exts = Arrays.asList(cl.getOptionValue('e').toLowerCase()
 					.split(","));
-		}
-		if (cl.hasOption("db")) {
-			dbName = cl.getOptionValue("db");
-			if (dbName != null)
-				dbName = dbName.toLowerCase();
 		}
 		if (cl.hasOption('f')) {
 			String file = cl.getOptionValue('f');
@@ -125,7 +117,6 @@ public class CliMain {
 			debug("  parsing SQLJE source...");
 			ParsedSource ps = sqljeParser.parse();
 			AstTransform astTransform = new AstTransform(ps);
-			astTransform.setTargetDatabase(dbName);
 			debug("  transforming ast...");
 			String javaSrc = astTransform.tranform();
 			FileOutputStream fos = new FileOutputStream(javaFile);

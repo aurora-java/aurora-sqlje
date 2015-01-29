@@ -1,6 +1,5 @@
 package aurora.sqlje.core.database;
 
-
 public class LockGenerator {
 
 	public static String generateLockSql(IDatabaseDescriptor dbDesc,
@@ -24,7 +23,7 @@ public class LockGenerator {
 			String whereClause) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("SELECT * FROM ").append(tableName);
-		if (whereClause != null) {
+		if (whereClause != null && whereClause.length() > 0) {
 			sb.append(" WHERE ");
 			sb.append(whereClause);
 		}
@@ -44,7 +43,7 @@ public class LockGenerator {
 			String whereClause) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("SELECT * FROM ").append(tableName);
-		if (whereClause != null) {
+		if (whereClause != null && whereClause.length() > 0) {
 			sb.append(" WITH(ROWLOCK)");
 			sb.append(" WHERE ").append(whereClause);
 		} else {

@@ -34,7 +34,7 @@ public class ASTNodeUtil {
 	 * 
 	 * @param ast
 	 * @param expr
-	 *            complex expression e.g. <u>a.name+'-'+a.address<u>
+	 *            complex expression e.g. <u>a.name+'-'+a.address</u>
 	 * @return
 	 */
 	public static Expression parseExpression(AST ast, String expr) {

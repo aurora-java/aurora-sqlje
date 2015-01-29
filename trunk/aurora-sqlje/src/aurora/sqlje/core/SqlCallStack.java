@@ -37,12 +37,18 @@ public class SqlCallStack implements ISqlCallStack {
 	public Connection getCurrentConnection() throws SQLException {
 		return connectionStack.peek();
 	}
-
+	
 	@Override
 	public Connection createConnection() throws SQLException {
+		return createConnection(true);
+	}
+
+	@Override
+	public Connection createConnection(boolean man) throws SQLException {
 		Connection conn = dataSource.getConnection();
 		conn.setAutoCommit(false);
-		connectionStack.push(conn);
+		if(man)
+			connectionStack.push(conn);
 		return conn;
 	}
 
@@ -68,6 +74,8 @@ public class SqlCallStack implements ISqlCallStack {
 
 	@Override
 	public void free(Connection conn) throws SQLException {
+		if (getCurrentConnection() == conn)
+			connectionStack.pop();
 		ArrayList<Object> list = resourceMap.get(conn);
 		if (list != null) {
 			for (Object o : list) {

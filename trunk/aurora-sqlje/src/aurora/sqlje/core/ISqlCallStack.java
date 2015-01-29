@@ -10,16 +10,36 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-import javax.sql.DataSource;
-
-import aurora.sqlje.core.database.IDatabaseDescriptor;
 import uncertain.composite.CompositeMap;
+import aurora.sqlje.core.database.IDatabaseDescriptor;
 
 public interface ISqlCallStack {
 
 	public Connection getCurrentConnection() throws SQLException;
 
+	/**
+	 * {@link #createConnection(boolean)} default true
+	 * 
+	 * @return
+	 * @throws SQLException
+	 */
 	public Connection createConnection() throws SQLException;
+
+	/**
+	 * create a connection
+	 * 
+	 * @param man
+	 *            <ul>
+	 *            <li>true:this connection will push into stack,all resource
+	 *            created by this connection will close automatically</li>
+	 *            <li>false:just create a connection,nothing more will be
+	 *            done,all resource created by this connection MUST close
+	 *            manually</li>
+	 *            </ul>
+	 * @return
+	 * @throws SQLException
+	 */
+	public Connection createConnection(boolean man) throws SQLException;
 
 	public void push(ResultSet rs);
 
@@ -41,7 +61,7 @@ public interface ISqlCallStack {
 	public void commit() throws SQLException;
 
 	public void rollback() throws SQLException;
-	
-	public IDatabaseDescriptor getDatabaseDescriptor() ;
+
+	public IDatabaseDescriptor getDatabaseDescriptor();
 
 }

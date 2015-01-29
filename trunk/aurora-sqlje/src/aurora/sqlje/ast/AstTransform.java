@@ -12,7 +12,6 @@ import static aurora.sqlje.ast.ASTNodeUtil.newVariableDeclarationStatement;
 import static aurora.sqlje.ast.ASTNodeUtil.parseExpression;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -62,13 +61,9 @@ import org.eclipse.jface.text.Document;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.text.edits.TextEdit;
 
-import uncertain.proc.MethodInvoke;
 import aurora.sqlje.core.ResultSetIterator;
 import aurora.sqlje.core.ResultSetUtil;
 import aurora.sqlje.core.SqlFlag;
-import aurora.sqlje.core.database.LockGenerator;
-import aurora.sqlje.core.database.MysqlInsert;
-import aurora.sqlje.core.database.OracleInsert;
 import aurora.sqlje.exception.ParserException;
 import aurora.sqlje.exception.TransformException;
 import aurora.sqlje.parser.Parameter;
@@ -100,8 +95,6 @@ public class AstTransform {
 
 	private ParsedSource parsedSource;
 
-	private String targetDatabase = "mysql";
-
 	public AstTransform(ParsedSource parsedSource) {
 		super();
 		this.parsedSource = parsedSource;
@@ -126,30 +119,6 @@ public class AstTransform {
 		}
 
 		return result.toString();
-	}
-
-	public void setTargetDatabase(String dbname) {
-		this.targetDatabase = dbname;
-		List<String> list = Arrays.asList("oracle", "mysql", "sqlserver");
-		if (!list.contains(dbname))
-			throw new IllegalArgumentException("target database name :"
-					+ dbname + " is not valid.");
-	}
-
-	public String getTargetDatabase() {
-		return targetDatabase;
-	}
-
-	boolean isForOracle() {
-		return "oracle".equals(targetDatabase);
-	}
-
-	boolean isForMysql() {
-		return "mysql".equals(targetDatabase);
-	}
-
-	boolean isForSqlServer() {
-		return "sqlserver".equals(targetDatabase);
 	}
 
 	/**
@@ -275,16 +244,17 @@ public class AstTransform {
 					list.add(node);
 				} else if (node.getName().getIdentifier().equals(METHOD_LOCK)) {
 					lockMiList.add(node);
-				} else if (node.getName().getIdentifier().equals(METHOD_INSERT)) {
-					insertMiList.add(node);
 				}
+				// else if
+				// (node.getName().getIdentifier().equals(METHOD_INSERT)) {
+				// insertMiList.add(node);
+				// }
 
 				return super.visit(node);
 			}
 
 		});
 		lockMethodReplace(lockMiList);
-		insertMethodReplace(insertMiList);
 		for (int i = 0; i < list.size(); i++) {
 			MethodInvocation mi = list.get(i);
 			StructuralPropertyDescriptor spd = mi.getLocationInParent();
@@ -347,75 +317,24 @@ public class AstTransform {
 		ArrayList<Statement> list = new ArrayList<Statement>();
 		List<Expression> argsList = mi.arguments();
 		String tableName = ((StringLiteral) argsList.get(0)).getLiteralValue();
-		String whereClause = null;
+		String whereClause = "";
 		if (argsList.size() >= 1 && argsList.get(1) instanceof StringLiteral) {
 			whereClause = ((StringLiteral) argsList.get(1)).getLiteralValue();
 		}
 
-		String sql = null;
-		if (isForOracle() || isForMysql()) {
-			sql = LockGenerator.generateSelectForUpdateSql(tableName,
-					whereClause);
-		} else if (isForSqlServer()) {
-			sql = LockGenerator.generateWithLockSql(tableName, whereClause);
-		}
+		String sql = "SELECT * FROM " + tableName + " WHERE " + whereClause;
+
+		LockOption lockOption = new LockOption(tableName, whereClause);
 		System.out.println(sql);
 		ParameterParser pp = new ParameterParser(sql);
 		ParsedSql psql = pp.parse();
 		String stmt_name = parsedSource.genId("ps");
 		AST ast = mi.getAST();
-		defineStatement(ast, psql, stmt_name, list, null);
-		performParameterBinding(ast, psql, list, stmt_name, null);
+		defineStatement(ast, psql, stmt_name, list, lockOption);
+		performParameterBinding(ast, psql, list, stmt_name, lockOption);
 		executeStatement(ast, stmt_name, list);
 		pushStmtIntoList(ast, stmt_name, list);
 		return list;
-	}
-
-	/**
-	 * $insert("tableName","pkName",bean); $insert("tableName","pkName",map)
-	 * 
-	 * @param list
-	 * @throws Exception
-	 */
-	private void insertMethodReplace(List<MethodInvocation> list)
-			throws Exception {
-		for (MethodInvocation mi : list) {
-			Statement s = findStatement(mi);
-			List<Statement> stmts = (List<Statement>) s.getParent()
-					.getStructuralProperty(s.getLocationInParent());
-			int index = stmts.indexOf(s);
-			List<Statement> gen_stmts = generate_insert_stmts(mi);
-			stmts.remove(index);
-			stmts.addAll(index, gen_stmts);
-		}
-	}
-
-	private List<Statement> generate_insert_stmts(MethodInvocation mi)
-			throws Exception {
-		ArrayList<Statement> stmts_list = new ArrayList<Statement>();
-		List<Expression> argsList = mi.arguments();
-		String tableName = ((StringLiteral) argsList.get(0)).getLiteralValue();
-		String pkName = ((StringLiteral) argsList.get(1)).getLiteralValue();
-		AST ast = mi.getAST();
-		Expression exp = null;
-		if (isForOracle()) {
-			exp = ASTNodeUtil.newClassInstance(ast, OracleInsert.class
-					.getName(), ASTNodeUtil.newMethodInvocation(ast, null,
-					GET_SQLCALL_STACK), ast.newSimpleName(argsList.get(2)
-					.toString()), ASTNodeUtil.newStringLiteral(ast, tableName),
-					ASTNodeUtil.newStringLiteral(ast, pkName));
-		} else if (isForMysql() || isForSqlServer()) {
-			exp = ASTNodeUtil.newClassInstance(ast,
-					MysqlInsert.class.getName(), ASTNodeUtil
-							.newMethodInvocation(ast, null, GET_SQLCALL_STACK),
-					ast.newSimpleName(argsList.get(2).toString()), ASTNodeUtil
-							.newStringLiteral(ast, tableName), ASTNodeUtil
-							.newStringLiteral(ast, pkName));
-		}
-		;
-		stmts_list.add(ast.newExpressionStatement(ASTNodeUtil
-				.newMethodInvocation(ast, exp, "insert")));
-		return stmts_list;
 	}
 
 	private Statement findStatement(ASTNode n) {
@@ -701,7 +620,7 @@ public class AstTransform {
 	}
 
 	void defineStatement(AST ast, ParsedSql ps, String stmt_name,
-			ArrayList<Statement> stmt_list, LimitOption limitOption) {
+			ArrayList<Statement> stmt_list, Object extraOption) {
 		String stmt_type = java.sql.PreparedStatement.class.getSimpleName();
 		String prepare_method = METHOD_PREPARE_STATEMENT;
 		if (ps.hasOutputParameter()) {
@@ -716,14 +635,24 @@ public class AstTransform {
 				String.class.getSimpleName(), ASTNodeUtil
 						.newVariableDeclarationFragment(ast, sqlStringId,
 								sqlExpression)));
-		if (limitOption != null) {
+		if (extraOption instanceof LimitOption) {
 			Assignment assn = ast.newAssignment();
 			assn.setLeftHandSide(ast.newSimpleName(sqlStringId));
 			assn.setRightHandSide(ASTNodeUtil.newMethodInvocation(ast,
 					ast.newSimpleName(SQL_FLAG), SqlFlag.PREPARE_LIMIT_SQL,
 					ast.newSimpleName(sqlStringId)));
 			stmt_list.add(ast.newExpressionStatement(assn));
+		} else if (extraOption instanceof LockOption) {
+			LockOption lockOption = (LockOption) extraOption;
+			Assignment assn = ast.newAssignment();
+			assn.setLeftHandSide(ast.newSimpleName(sqlStringId));
+			assn.setRightHandSide(ASTNodeUtil.newMethodInvocation(ast,
+					ast.newSimpleName(SQL_FLAG), "lock",
+					ASTNodeUtil.newStringLiteral(ast, lockOption.tableName),
+					ASTNodeUtil.newStringLiteral(ast, lockOption.whereClause)));
+			stmt_list.add(ast.newExpressionStatement(assn));
 		}
+
 		// PreparedStatement ps =
 		// getSqlCallStack().getCurrentConnection().preparedStatement(sql);
 		VariableDeclarationStatement vds = newVariableDeclarationStatement(
@@ -752,6 +681,15 @@ public class AstTransform {
 		MethodInvocation mi2 = newMethodInvocation(ast,
 				ast.newSimpleName(stmt_name), METHOD_EXECUTE);
 		stmt_list.add(ast.newExpressionStatement(mi2));
+
+//		 String code = "try{" + stmt_name
+//		 + ".execute();}catch(Exception _e){System.out.println("
+//		 + stmt_name + ");throw _e;}";
+//		 Block trys = (Block) createAST(code.toCharArray(),
+//		 ASTParser.K_STATEMENTS);
+//		 List list = ASTNode.copySubtrees(ast, trys.statements());
+//		 stmt_list.addAll(list);
+
 	}
 
 	ArrayList<Statement> generate__sqlj_execute(MethodInvocation mi)
@@ -879,7 +817,7 @@ public class AstTransform {
 	}
 
 	void performParameterBinding(AST ast, ParsedSql psql,
-			ArrayList<Statement> list, String stmt_name, LimitOption limitOption) {
+			ArrayList<Statement> list, String stmt_name, Object extraOption) {
 		int i = 1;
 		// parameter binding
 		for (Parameter p : psql.getBindParameters()) {
@@ -906,7 +844,8 @@ public class AstTransform {
 			}
 			i++;
 		}
-		if (limitOption != null) {
+		if (extraOption instanceof LimitOption) {
+			LimitOption limitOption = (LimitOption) extraOption;
 			Expression callBindExp = ASTNodeUtil.newMethodInvocation(ast,
 					ast.newSimpleName(SQL_FLAG), SqlFlag.PREPARE_LIMIT_PARA,
 					ast.newSimpleName(stmt_name), limitOption.start,
