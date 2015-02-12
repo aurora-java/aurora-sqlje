@@ -317,8 +317,8 @@ public class AstTransform {
 		ArrayList<Statement> list = new ArrayList<Statement>();
 		List<Expression> argsList = mi.arguments();
 		String tableName = ((StringLiteral) argsList.get(0)).getLiteralValue();
-		String whereClause = "";
-		if (argsList.size() >= 1 && argsList.get(1) instanceof StringLiteral) {
+		String whereClause = "1=1";
+		if (argsList.size() > 1 && argsList.get(1) instanceof StringLiteral) {
 			whereClause = ((StringLiteral) argsList.get(1)).getLiteralValue();
 		}
 
@@ -647,7 +647,7 @@ public class AstTransform {
 			Assignment assn = ast.newAssignment();
 			assn.setLeftHandSide(ast.newSimpleName(sqlStringId));
 			assn.setRightHandSide(ASTNodeUtil.newMethodInvocation(ast,
-					ast.newSimpleName(SQL_FLAG), "lock",
+					ast.newSimpleName(SQL_FLAG), SqlFlag.GEN_LOCK,
 					ASTNodeUtil.newStringLiteral(ast, lockOption.tableName),
 					ASTNodeUtil.newStringLiteral(ast, lockOption.whereClause)));
 			stmt_list.add(ast.newExpressionStatement(assn));
