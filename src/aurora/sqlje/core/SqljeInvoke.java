@@ -2,6 +2,7 @@ package aurora.sqlje.core;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.sql.Connection;
 
 import uncertain.composite.CompositeMap;
 import uncertain.composite.TextParser;
@@ -34,9 +35,14 @@ public class SqljeInvoke extends AbstractEntry {
 		CompositeMap context = runner.getContext();
 		SqlServiceContext sqlServiceContext = SqlServiceContext
 				.createSqlServiceContext(context);
-		sqlServiceContext.initConnection(reg, null);
+		Connection currentConn = sqlServiceContext.getConnection();
+		boolean createNewConn = currentConn == null;
+		if (createNewConn) {
+			sqlServiceContext.initConnection(reg, null);
+			currentConn = sqlServiceContext.getConnection();
+		}
 		ISqlCallStack sqlCallStack = new SqlCallStack(dsf.getDataSource(),
-				sqlServiceContext.getConnection());
+				currentConn);
 		sqlCallStack.setContextData(context);
 		if (procName == null)
 			throw BuiltinExceptionFactory.createAttributeMissing(this,
@@ -68,7 +74,8 @@ public class SqljeInvoke extends AbstractEntry {
 			e.printStackTrace();
 			throw e;
 		} finally {
-			sqlCallStack.cleanUp();
+			//release resource only,connection will be closed by SqlServiceContext.freeConnection()
+			sqlCallStack.free(currentConn, false);
 		}
 	}
 
