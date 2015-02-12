@@ -16,6 +16,8 @@ import aurora.sqlje.core.database.OracleInsert;
 public class SqlFlag {
 	public static final String PREPARE_LIMIT_SQL = "_$prepareLimitSql";
 	public static final String PREPARE_LIMIT_PARA = "_$prepareLimitParaBinding";
+	
+	public static final String GEN_LOCK = "_$prepareLockSql";
 
 	public static final String CLEAR = "clear";
 	public int UPDATECOUNT = 0;
@@ -33,6 +35,11 @@ public class SqlFlag {
 		return UPDATECOUNT;
 	}
 
+	/**
+	 * INTERNAL USE ONLY
+	 * @param osql
+	 * @return
+	 */
 	public String _$prepareLimitSql(String osql) {
 		IDatabaseDescriptor dbDescriptor = self_sqlje.getSqlCallStack()
 				.getDatabaseDescriptor();
@@ -48,6 +55,14 @@ public class SqlFlag {
 		return sb.toString();
 	}
 
+	/**
+	 * INTERNAL USE ONLY
+	 * @param ps
+	 * @param start
+	 * @param end
+	 * @param startIdx
+	 * @throws SQLException
+	 */
 	public void _$prepareLimitParaBinding(PreparedStatement ps, int start,
 			int end, int startIdx) throws SQLException {
 		IDatabaseDescriptor dbDesc = self_sqlje.getSqlCallStack()
@@ -63,7 +78,14 @@ public class SqlFlag {
 
 	// ///lock
 
-	public String lock(String tableName, String whereClause) throws Exception {
+	/**
+	 * INTERNAL USE ONLY
+	 * @param tableName
+	 * @param whereClause
+	 * @return
+	 * @throws Exception
+	 */
+	public String _$prepareLockSql(String tableName, String whereClause) throws Exception {
 		IDatabaseDescriptor dbDescriptor = self_sqlje.getSqlCallStack()
 				.getDatabaseDescriptor();
 		if (dbDescriptor.isMysql() || dbDescriptor.isOracle())

@@ -45,7 +45,26 @@ public interface ISqlCallStack {
 
 	public void push(Statement stmt);
 
+	/**
+	 * release all resource created from current connection,and close the
+	 * connection
+	 * 
+	 * @see #free(Connection,boolean)
+	 * 
+	 * @param conn
+	 * @throws SQLException
+	 */
 	public void free(Connection conn) throws SQLException;
+
+	/**
+	 * release all resource created from current connection
+	 * 
+	 * @param conn
+	 * @param close
+	 *            close the connection after release all resource
+	 * @throws SQLException
+	 */
+	public void free(Connection conn, boolean close) throws SQLException;
 
 	/*
 	 * public DataSource getDataSource();
