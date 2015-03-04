@@ -1,15 +1,21 @@
 package aurora.sqlje.core;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.TypeVariable;
 import java.math.BigDecimal;
-import java.sql.*;
 import java.sql.Date;
-import java.util.*;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import org.eclipse.jdt.core.dom.TypeParameter;
-
-import aurora.sqlje.exception.*;
+import aurora.sqlje.exception.NoDataFoundException;
+import aurora.sqlje.exception.TooManyColumnsException;
+import aurora.sqlje.exception.TooManyRowsException;
 
 public class DataTransfer {
 	public static Class<?>[] supported_types = { String.class, int.class,
@@ -46,7 +52,7 @@ public class DataTransfer {
 	 */
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	public static <T> T transfer1(Class<T> clazz, ResultSet rs)
-			throws Exception {
+			throws SQLException {
 		if (!rs.next())
 			throw new NoDataFoundException();
 		List<String> column_names = getColumnNames(rs);
@@ -54,7 +60,7 @@ public class DataTransfer {
 		if (Map.class.isAssignableFrom(clazz)) {
 			Map map = null;
 			if (!clazz.isInterface()) {
-				map = (Map) clazz.newInstance();
+				map = (Map) createInstance(clazz);
 			} else
 				map = new HashMap();
 			fillMap(map, rs, column_names);
@@ -64,7 +70,7 @@ public class DataTransfer {
 				throw new TooManyColumnsException();
 			return (T) verboseGet(rs, column_names.get(0), clazz);
 		} else {
-			Object bean = clazz.newInstance();
+			Object bean = createInstance(clazz);
 			fillBean(bean, rs, column_names);
 			res = (T) bean;
 		}
@@ -75,7 +81,7 @@ public class DataTransfer {
 
 	@SuppressWarnings("rawtypes")
 	public static Map transfer1(Map map, ResultSet rs, List<String> column_names)
-			throws Exception {
+			throws SQLException {
 		if (!rs.next())
 			throw new NoDataFoundException();
 		fillMap(map, rs, column_names);
@@ -84,13 +90,14 @@ public class DataTransfer {
 		return map;
 	}
 
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	public static <T> T transferAll(Class<? extends List> clazz,
-			Class eleClazz, ResultSet rs) throws Exception {
+			Class eleClazz, ResultSet rs) throws SQLException {
 		List collection = null;
 		if (clazz.isInterface())
 			collection = new ArrayList();
 		else
-			collection = clazz.newInstance();
+			collection = (List) createInstance(clazz);
 		List<String> column_names = getColumnNames(rs);
 		if (column_names.size() == 1 && supported_type_list.contains(eleClazz)) {
 			String name = column_names.get(0);
@@ -104,11 +111,11 @@ public class DataTransfer {
 					if (eleClazz.isInterface())
 						map = new HashMap();
 					else
-						map = (Map) eleClazz.newInstance();
+						map = (Map) createInstance(eleClazz);
 					fillMap(map, rs, column_names);
 					collection.add(map);
 				} else {
-					Object bean = eleClazz.newInstance();
+					Object bean = createInstance(eleClazz);
 					fillBean(bean, rs, column_names);
 					collection.add(bean);
 				}
@@ -118,6 +125,20 @@ public class DataTransfer {
 		return (T) collection;
 	}
 
+	static Object createInstance(Class<?> clazz) throws RuntimeException {
+		try {
+			return clazz.newInstance();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	/**
+	 * return a list contains all column names in UPPER case
+	 * @param rs
+	 * @return
+	 * @throws SQLException
+	 */
 	public static List<String> getColumnNames(ResultSet rs) throws SQLException {
 		List<String> column_names = new ArrayList<String>();
 		ResultSetMetaData rsmd = rs.getMetaData();
@@ -127,9 +148,17 @@ public class DataTransfer {
 		return column_names;
 	}
 
+	/**
+	 * transfer current row into map<br>
+	 * the key of map are all in LOWER case!
+	 * @param map
+	 * @param rs
+	 * @param column_names
+	 * @throws SQLException
+	 */
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	public static void fillMap(Map map, ResultSet rs, List<String> column_names)
-			throws Exception {
+			throws SQLException {
 		for (String name : column_names) {
 			map.put(name.toLowerCase(), rs.getObject(name));
 		}
@@ -137,7 +166,7 @@ public class DataTransfer {
 
 	public static void fillBean(Object bean, ResultSet rs,
 			List<String> column_names) throws IllegalArgumentException,
-			IllegalAccessException, SQLException {
+			SQLException {
 		Field[] flds = bean.getClass().getFields();
 
 		ArrayList<String> acceptedColumns = new ArrayList<String>();
@@ -145,7 +174,11 @@ public class DataTransfer {
 			if (supported_type_list.contains(f.getType())) {
 				String upperName = f.getName().toUpperCase();
 				if (column_names.contains(upperName)) {
-					f.set(bean, verboseGet(rs, upperName, f.getType()));
+					try {
+						f.set(bean, verboseGet(rs, upperName, f.getType()));
+					} catch (IllegalAccessException e) {
+						throw new RuntimeException(e);
+					}
 					acceptedColumns.add(upperName);
 				}
 			}

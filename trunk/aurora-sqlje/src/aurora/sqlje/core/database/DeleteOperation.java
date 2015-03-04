@@ -3,6 +3,7 @@ package aurora.sqlje.core.database;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.SQLException;
 
 import aurora.sqlje.core.ISqlCallStack;
 import aurora.sqlje.core.annotation.PK;
@@ -58,7 +59,7 @@ public class DeleteOperation {
 	 * 
 	 * @throws Exception
 	 */
-	public void doDelete() throws Exception {
+	public void doDelete() throws SQLException {
 		if (tableName == null || pkName == null) {
 			throw new IllegalArgumentException(
 					"can not do delete without tableName or pkName");
