@@ -1,6 +1,6 @@
 package aurora.sqlje.exception;
 
-public class NoDataFoundException extends Exception {
+public class NoDataFoundException extends RuntimeException {
 
 	/**
 	 * 

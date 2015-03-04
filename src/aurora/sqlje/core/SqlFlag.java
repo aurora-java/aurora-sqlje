@@ -16,7 +16,7 @@ import aurora.sqlje.core.database.OracleInsert;
 public class SqlFlag {
 	public static final String PREPARE_LIMIT_SQL = "_$prepareLimitSql";
 	public static final String PREPARE_LIMIT_PARA = "_$prepareLimitParaBinding";
-	
+
 	public static final String GEN_LOCK = "_$prepareLockSql";
 
 	public static final String CLEAR = "clear";
@@ -37,6 +37,7 @@ public class SqlFlag {
 
 	/**
 	 * INTERNAL USE ONLY
+	 * 
 	 * @param osql
 	 * @return
 	 */
@@ -57,6 +58,7 @@ public class SqlFlag {
 
 	/**
 	 * INTERNAL USE ONLY
+	 * 
 	 * @param ps
 	 * @param start
 	 * @param end
@@ -68,9 +70,12 @@ public class SqlFlag {
 		IDatabaseDescriptor dbDesc = self_sqlje.getSqlCallStack()
 				.getDatabaseDescriptor();
 		if (dbDesc.isOracle()) {
-			ps.setInt(startIdx, end);
+			//rownum < end + 1
+			ps.setInt(startIdx, end + 1);
+			//rownum > start
 			ps.setInt(startIdx + 1, start);
 		} else {
+			//limit start, end
 			ps.setInt(startIdx, start);
 			ps.setInt(startIdx + 1, end);
 		}
@@ -80,16 +85,23 @@ public class SqlFlag {
 
 	/**
 	 * INTERNAL USE ONLY
+	 * 
 	 * @param tableName
 	 * @param whereClause
 	 * @return
 	 * @throws Exception
 	 */
-	public String _$prepareLockSql(String tableName, String whereClause) throws Exception {
+	public String _$prepareLockSql(String tableName, String whereClause)
+			throws Exception {
 		IDatabaseDescriptor dbDescriptor = self_sqlje.getSqlCallStack()
 				.getDatabaseDescriptor();
 		if (dbDescriptor.isMysql() || dbDescriptor.isOracle())
-			return LockGenerator.generateSelectForUpdateSql(tableName, whereClause);
+			return LockGenerator.generateSelectForUpdateSql(tableName,
+					whereClause);
+		else if (dbDescriptor.isDB2()) {
+			return LockGenerator.generateDB2LockSql(tableName, whereClause);
+		}
+		// sqlserver
 		return LockGenerator.generateWithLockSql(tableName, whereClause);
 	}
 
@@ -134,12 +146,12 @@ public class SqlFlag {
 	}
 
 	public void delete(String tableName, String pkName, Object pk)
-			throws Exception {
+			throws SQLException {
 		new DeleteOperation(self_sqlje.getSqlCallStack(), tableName, pkName, pk)
 				.doDelete();
 	}
 
-	public void delete(Object bean) throws Exception {
+	public void delete(Object bean) throws SQLException {
 		new DeleteOperation(self_sqlje.getSqlCallStack(), bean).doDelete();
 	}
 

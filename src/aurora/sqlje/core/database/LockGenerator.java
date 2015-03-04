@@ -51,4 +51,22 @@ public class LockGenerator {
 		}
 		return sb.toString();
 	}
+	
+	/**
+	 * used for DB2 
+	 * @param tableName
+	 * @param whereClause
+	 * @return
+	 */
+	public static String generateDB2LockSql(String tableName,
+			String whereClause) {
+		StringBuilder sb = new StringBuilder();
+		sb.append("SELECT * FROM ").append(tableName);
+		if (whereClause != null && whereClause.length() > 0) {
+			sb.append(" WHERE ");
+			sb.append(whereClause);
+		}
+		sb.append(" FOR UPDATE WITH RS");
+		return sb.toString();
+	}
 }

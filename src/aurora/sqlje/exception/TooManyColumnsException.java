@@ -1,6 +1,6 @@
 package aurora.sqlje.exception;
 
-public class TooManyColumnsException extends Exception {
+public class TooManyColumnsException extends RuntimeException {
 
 	/**
 	 * 

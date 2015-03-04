@@ -5,4 +5,5 @@ public interface IDatabaseDescriptor {
 	boolean isOracle();
 	boolean isMysql();
 	boolean isSqlServer();
+	boolean isDB2();
 }

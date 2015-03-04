@@ -1,6 +1,5 @@
 package aurora.sqlje.core.database;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.sql.Connection;
 import java.sql.PreparedStatement;

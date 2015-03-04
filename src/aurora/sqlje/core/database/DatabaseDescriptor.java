@@ -6,13 +6,14 @@ import java.sql.SQLException;
 public class DatabaseDescriptor implements IDatabaseDescriptor {
 
 	private String name = "";
-	private boolean isOracle, isMysql, isSqlServer;
+	private boolean isOracle, isMysql, isSqlServer,isDB2;
 
 	public void init(DatabaseMetaData dmd) throws SQLException {
 		name = dmd.getDatabaseProductName();
 		isOracle = name.equalsIgnoreCase("oracle");
 		isMysql = name.equalsIgnoreCase("mysql");
 		isSqlServer = name.equalsIgnoreCase("Microsoft SQL Server");
+		isDB2 = name.startsWith("DB2");
 	}
 
 	@Override
@@ -32,6 +33,11 @@ public class DatabaseDescriptor implements IDatabaseDescriptor {
 
 	public boolean isSqlServer() {
 		return isSqlServer;
+	}
+
+	@Override
+	public boolean isDB2() {
+		return isDB2;
 	}
 
 }
