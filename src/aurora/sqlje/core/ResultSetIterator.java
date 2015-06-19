@@ -1,16 +1,19 @@
 package aurora.sqlje.core;
 
 import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 public class ResultSetIterator<T> implements Iterable<T>, Iterator<T> {
 	final ResultSet rs;
-	Class<T> clazz;
+	Class<T> typeClass;
 	T current;
 	List<String> column_names;
+	boolean isBasicType = false;
 
-	public ResultSetIterator(ResultSet rs) {
+	private ResultSetIterator(ResultSet rs) {
 		super();
 		this.rs = rs;
 		if (rs == null)
@@ -20,7 +23,8 @@ public class ResultSetIterator<T> implements Iterable<T>, Iterator<T> {
 
 	public ResultSetIterator(ResultSet rs, Class<T> clazz) {
 		this(rs);
-		this.clazz = clazz;
+		this.typeClass = clazz;
+		isBasicType = DataTransfer.supported_type_list.contains(clazz);
 	}
 
 	private void getColumnsInfo() {
@@ -34,17 +38,17 @@ public class ResultSetIterator<T> implements Iterable<T>, Iterator<T> {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	void createCurrent() {
 		try {
-			if (DataTransfer.supported_type_list.contains(clazz)) {
+			if (isBasicType) {
 				current = (T) DataTransfer.verboseGet(rs, column_names.get(0),
-						clazz);
-			} else if (Map.class.isAssignableFrom(clazz)) {
-				if (!clazz.isInterface()) {
-					current = clazz.newInstance();
+						typeClass);
+			} else if (Map.class.isAssignableFrom(typeClass)) {
+				if (!typeClass.isInterface()) {
+					current = typeClass.newInstance();
 				} else
 					current = (T) new HashMap();
 				DataTransfer.fillMap((Map) current, rs, column_names);
 			} else {
-				current = clazz.newInstance();
+				current = typeClass.newInstance();
 				DataTransfer.fillBean(current, rs, column_names);
 			}
 		} catch (Exception e) {
@@ -56,8 +60,8 @@ public class ResultSetIterator<T> implements Iterable<T>, Iterator<T> {
 	public boolean hasNext() {
 		try {
 			boolean next = rs.next();
-			if (next) {
-				createCurrent();
+			if (!next) {
+				rs.close();
 			}
 			return next;
 		} catch (Exception e) {
@@ -68,6 +72,7 @@ public class ResultSetIterator<T> implements Iterable<T>, Iterator<T> {
 
 	@Override
 	public T next() {
+		createCurrent();
 		return current;
 	}
 
@@ -79,9 +84,5 @@ public class ResultSetIterator<T> implements Iterable<T>, Iterator<T> {
 	@Override
 	public Iterator<T> iterator() {
 		return this;
-	}
-
-	public void close() throws SQLException {
-		rs.close();
 	}
 }
