@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <u:instance-config xmlns:u="uncertain.pkg">
 	<u:instances>
-		<u:configurable-instance configFile="sqlje.config" >
-            <u:description>SQLJE配置</u:description>
-        </u:configurable-instance>
+		<u:configurable-instance configFile="sqlje.config">
+			<u:description>SQLJE配置</u:description>
+			<u:required-instances>
+				<u:type typeName="aurora.service.exception.IExceptionDescriptor" />
+			</u:required-instances>
+		</u:configurable-instance>
 	</u:instances>
 </u:instance-config>
