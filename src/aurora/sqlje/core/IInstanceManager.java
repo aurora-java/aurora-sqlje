@@ -12,4 +12,9 @@ public interface IInstanceManager {
 	public <T extends ISqlCallEnabled> T createInstance(
 			Class<? extends ISqlCallEnabled> clazz, ISqlCallEnabled caller);
 
+	public <T extends ISqlCallEnabled> T createInstance(String name);
+
+	public <T extends ISqlCallEnabled> T createInstance(String name,
+			ISqlCallEnabled caller);
+
 }

@@ -28,6 +28,8 @@ import uncertain.composite.JSONAdaptor;
 import uncertain.core.UncertainEngine;
 import uncertain.ocm.IObjectRegistry;
 import uncertain.proc.IProcedureManager;
+import uncertain.proc.IProcedureRegistry;
+import uncertain.proc.Procedure;
 import uncertain.proc.trace.StackTraceManager;
 import uncertain.proc.trace.TraceElement;
 import aurora.database.service.IDatabaseServiceFactory;
@@ -55,6 +57,7 @@ public class SqljeServiceServlet extends HttpServlet {
 	protected ServletContext mContext;
 	private HttpServiceFactory mServiceFactory;
 	private IInstanceManager instMgr;
+	private IProcedureRegistry mProcRegistry;
 
 	// Procedure mPreServiceProc;
 	// Procedure mPostServiceProc;
@@ -173,59 +176,76 @@ public class SqljeServiceServlet extends HttpServlet {
 			JSONServiceContext jsonCtx = (JSONServiceContext) DynamicObject
 					.cast(contextMap, JSONServiceContext.class);
 			new JSONServiceInterpreter().preParseParameter(jsonCtx);
-			Class<? extends ISqlCallEnabled> clazz = (Class<? extends ISqlCallEnabled>) Class
-					.forName(className);
-			ISqlCallEnabled proc = instMgr.createInstance(clazz);
 			CompositeMap param = contextMap.getChild("parameter");
-			if (proc != null) {
-				proc._$setSqlCallStack(callStack);
-				Method method = clazz.getMethod(methodName, CompositeMap.class);
-				if (method != null) {
-					if ("batch".equals(batch)) {
-						List<CompositeMap> childs = param.getChilds();
-						if (childs != null) {
-							for (CompositeMap m : childs) {
-								method.invoke(proc, m);
-							}
-						}
-					} else
-						method.invoke(proc, param);
-				}
-			} else {
-				throw new IllegalArgumentException(className
-						+ " is not a valid SQLJE procedure.");
-			}
-			Object output = contextMap.get("output");
-			if (output == null)
-				output = param;
-			if (output instanceof CharSequence) {
-				response.setContentType(JSONServiceInterpreter.DEFAULT_JSON_CONTENT_TYPE);
-				response.getWriter().write(output.toString());
-			} else if (output instanceof CompositeMap) {
-				JSONObject json = new JSONObject();
-				// Write success flag
-				json.put("success", is_success);
-				JSONObject o = JSONAdaptor.toJSONObject((CompositeMap) output);
-				json.put("result", o);
-				response.setContentType(JSONServiceInterpreter.DEFAULT_JSON_CONTENT_TYPE);
-				response.getWriter().write(json.toString());
-			} else if (output instanceof InputStream) {
-				transfer((InputStream) output, response.getOutputStream());
-			} else if (output instanceof Reader) {
-				Reader reader = (Reader) output;
-				transfer(reader, response.getWriter());
-			} else if (output instanceof File) {
-				File file = (File) output;
-				response.setHeader("Content-disposition",
-						"attachment; filename=" + file.getName());
-				response.setDateHeader("Expires", 0);
-				response.setContentType("application/x-msdownload");
-				transfer(new FileInputStream(file), response.getOutputStream());
-			} else {
-				throw new IllegalArgumentException(
-						"Target for SQLJE output is illegal." + output);
+
+			// //pre-service
+
+			Procedure pre_service_proc = null;
+
+			if (mProcRegistry != null) {
+				pre_service_proc = mProcRegistry.getProcedure(PRE_SERVICE);
 			}
 
+			if (pre_service_proc != null)
+				is_success = svc.invoke(pre_service_proc);
+
+			// /end pre-service
+
+			if (is_success) {
+				ISqlCallEnabled proc = instMgr.createInstance(className);
+				if (proc != null) {
+					proc._$setSqlCallStack(callStack);
+					Method method = proc.getClass().getMethod(methodName,
+							CompositeMap.class);
+					if (method != null) {
+						if ("batch".equals(batch)) {
+							List<CompositeMap> childs = param.getChilds();
+							if (childs != null) {
+								for (CompositeMap m : childs) {
+									method.invoke(proc, m);
+								}
+							}
+						} else
+							method.invoke(proc, param);
+					}
+				} else {
+					throw new IllegalArgumentException(className
+							+ " is not a valid SQLJE procedure.");
+				}
+
+				Object output = contextMap.get("output");
+				if (output == null)
+					output = param;
+				if (output instanceof CharSequence) {
+					response.setContentType(JSONServiceInterpreter.DEFAULT_JSON_CONTENT_TYPE);
+					response.getWriter().write(output.toString());
+				} else if (output instanceof CompositeMap) {
+					JSONObject json = new JSONObject();
+					// Write success flag
+					json.put("success", is_success);
+					JSONObject o = JSONAdaptor
+							.toJSONObject((CompositeMap) output);
+					json.put("result", o);
+					response.setContentType(JSONServiceInterpreter.DEFAULT_JSON_CONTENT_TYPE);
+					response.getWriter().write(json.toString());
+				} else if (output instanceof InputStream) {
+					transfer((InputStream) output, response.getOutputStream());
+				} else if (output instanceof Reader) {
+					Reader reader = (Reader) output;
+					transfer(reader, response.getWriter());
+				} else if (output instanceof File) {
+					File file = (File) output;
+					response.setHeader("Content-disposition",
+							"attachment; filename=" + file.getName());
+					response.setDateHeader("Expires", 0);
+					response.setContentType("application/x-msdownload");
+					transfer(new FileInputStream(file),
+							response.getOutputStream());
+				} else {
+					throw new IllegalArgumentException(
+							"Target for SQLJE output is illegal." + output);
+				}
+			}
 		} catch (Throwable ex) {
 			is_success = false;
 			/*
@@ -304,6 +324,9 @@ public class SqljeServiceServlet extends HttpServlet {
 		mServiceFactory = (HttpServiceFactory) mUncertainEngine
 				.getObjectRegistry()
 				.getInstanceOfType(HttpServiceFactory.class);
+		mProcRegistry = (IProcedureRegistry) mUncertainEngine
+				.getObjectRegistry()
+				.getInstanceOfType(IProcedureRegistry.class);
 		if (mServiceFactory == null)
 			throw new ServletException(
 					"No ServiceFactory instance registered in UncertainEngine");

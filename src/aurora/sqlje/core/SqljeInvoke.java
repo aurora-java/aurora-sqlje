@@ -53,28 +53,29 @@ public class SqljeInvoke extends AbstractEntry {
 					.createAttributeMissing(this, "method");
 		method = TextParser.parse(method, context);
 		try {
-			Class clazz = Class.forName(procName);
-			if (ISqlCallEnabled.class.isAssignableFrom(clazz)) {
-				ISqlCallEnabled proc = instManager.createInstance(clazz);
-				if (proc == null)
-					throw new SqljeInitException("Can't create SQLJE proc : "
-							+ clazz, new NullPointerException());
-				proc._$setSqlCallStack(sqlCallStack);
-				Method m = getMethod(proc);
-				m.invoke(proc, context.getChild("parameter"));
-			} else {
-				throw new Exception("Illegal SQLJE proc : " + procName);
-			}
+			ISqlCallEnabled proc = instManager.createInstance(procName);
+			if (proc == null)
+				throw new SqljeInitException("Can't create SQLJE proc : "
+						+ procName, new NullPointerException());
+			proc._$setSqlCallStack(sqlCallStack);
+			Method m = getMethod(proc);
+			m.invoke(proc, context.getChild("parameter"));
 			sqlCallStack.commit();
 		} catch (ClassNotFoundException e) {
 			sqlCallStack.rollback();
 			throw new SqljeInitException(procName + " not exists", e);
-		} catch (Exception e) {
+		} catch (Throwable e) {
 			sqlCallStack.rollback();
 			e.printStackTrace();
-			throw e;
+			while (e.getCause() != null)
+				e = e.getCause();
+			if (e instanceof Exception) {
+				throw (Exception) e;
+			}
+			throw new Exception(e);
 		} finally {
-			//release resource only,connection will be closed by SqlServiceContext.freeConnection()
+			// release resource only,connection will be closed by
+			// SqlServiceContext.freeConnection()
 			sqlCallStack.free(currentConn, false);
 		}
 	}
@@ -84,8 +85,8 @@ public class SqljeInvoke extends AbstractEntry {
 			if ((m.getModifiers() & Modifier.PUBLIC) == Modifier.PUBLIC
 					&& m.getName().equals(method)) {
 				Class[] paramTypes = m.getParameterTypes();
-				if (paramTypes.length == 1
-						&& paramTypes[0].isAssignableFrom(CompositeMap.class))
+				if (paramTypes.length == 1)
+					// && paramTypes[0].isAssignableFrom(CompositeMap.class))
 					return m;
 			}
 		}
