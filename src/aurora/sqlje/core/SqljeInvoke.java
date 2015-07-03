@@ -85,8 +85,7 @@ public class SqljeInvoke extends AbstractEntry {
 			if ((m.getModifiers() & Modifier.PUBLIC) == Modifier.PUBLIC
 					&& m.getName().equals(method)) {
 				Class[] paramTypes = m.getParameterTypes();
-				if (paramTypes.length == 1)
-					// && paramTypes[0].isAssignableFrom(CompositeMap.class))
+				if (paramTypes.length == 1 && paramTypes[0].isAssignableFrom(CompositeMap.class))
 					return m;
 			}
 		}

@@ -27,6 +27,7 @@ public class InstanceManager implements IInstanceManager {
 
 	private HashMap<String, ProcClassEntry> classCache = new HashMap<String, ProcClassEntry>(
 			100);
+	private ClassLoader currentClassLoader = getClass().getClassLoader();
 
 	public InstanceManager(IObjectRegistry ior, IDatabaseServiceFactory dsf) {
 		super();
@@ -78,8 +79,7 @@ public class InstanceManager implements IInstanceManager {
 	@Override
 	public <T extends ISqlCallEnabled> T createInstance(String name) {
 		try {
-			Class<? extends ISqlCallEnabled> clazz = (Class<? extends ISqlCallEnabled>) new SQLJEClassLoader(
-					InstanceManager.class.getClassLoader()).findClass(name);
+			Class<? extends ISqlCallEnabled> clazz = loadProcClass(name);
 			return createInstance(clazz);
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
@@ -91,13 +91,18 @@ public class InstanceManager implements IInstanceManager {
 	public <T extends ISqlCallEnabled> T createInstance(String name,
 			ISqlCallEnabled caller) {
 		try {
-			Class<? extends ISqlCallEnabled> clazz = (Class<? extends ISqlCallEnabled>) new SQLJEClassLoader(
-					InstanceManager.class.getClassLoader()).findClass(name);
+			Class<? extends ISqlCallEnabled> clazz = loadProcClass(name);
 			return createInstance(clazz, caller);
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
 		}
 		return null;
+	}
+
+	private Class<? extends ISqlCallEnabled> loadProcClass(String name)
+			throws ClassNotFoundException {
+		return (Class<? extends ISqlCallEnabled>) new SQLJEClassLoader(
+				currentClassLoader).findClass(name);
 	}
 
 	private ISqlCallStack createCallStack() throws SQLException {
@@ -135,7 +140,7 @@ public class InstanceManager implements IInstanceManager {
 						e.clazz = defineClassFromFile(name, file);
 						e.lastUpdate = file.lastModified();
 						classCache.put(name, e);
-						System.out.println("init load class " + name);
+						System.out.println("initial load class " + name);
 						return e.clazz;
 					}
 					if (e.lastUpdate >= file.lastModified()) {

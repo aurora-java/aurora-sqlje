@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <class-registry>
   <package-mapping packageName="aurora.sqlje.core" />
+  <package-mapping packageName="aurora.sqlje.core.database" />
   <package-mapping packageName="aurora.sqlje.exception"/>
 </class-registry>

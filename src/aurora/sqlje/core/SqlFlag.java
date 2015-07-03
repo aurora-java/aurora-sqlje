@@ -12,6 +12,7 @@ import aurora.sqlje.core.database.IDatabaseDescriptor;
 import aurora.sqlje.core.database.LockGenerator;
 import aurora.sqlje.core.database.MysqlInsert;
 import aurora.sqlje.core.database.OracleInsert;
+import aurora.sqlje.core.database.UpdateOperation;
 
 public class SqlFlag {
 	public static final String PREPARE_LIMIT_SQL = "_$prepareLimitSql";
@@ -70,12 +71,12 @@ public class SqlFlag {
 		IDatabaseDescriptor dbDesc = self_sqlje.getSqlCallStack()
 				.getDatabaseDescriptor();
 		if (dbDesc.isOracle()) {
-			//rownum < end + 1
+			// rownum < end + 1
 			ps.setInt(startIdx, end + 1);
-			//rownum > start
+			// rownum > start
 			ps.setInt(startIdx + 1, start);
 		} else {
-			//limit start, end
+			// limit start, end
 			ps.setInt(startIdx, start);
 			ps.setInt(startIdx + 1, end);
 		}
@@ -107,11 +108,11 @@ public class SqlFlag {
 
 	// ///end lock
 
-	public void insert(Object bean) throws Exception {
-		insert(bean, null, null);
+	public Object insert(Object bean) throws Exception {
+		return insert(bean, null, null);
 	}
 
-	public void insert(Object bean, String tableName, String pkName)
+	public Object insert(Object bean, String tableName, String pkName)
 			throws Exception {
 		IObjectRegistry reg = ((InstanceManager) self_sqlje
 				.getInstanceManager()).getObjectRegistry();
@@ -125,10 +126,10 @@ public class SqlFlag {
 
 		OCManager ocm = (OCManager) reg.getInstanceOfType(OCManager.class);
 		insert.setReflectionMapper(ocm.getReflectionMapper());
-		insert.doInsert();
+		return insert.doInsert();
 	}
 
-	public void insert(Map map, String tableName, String pkName)
+	public Object insert(Map map, String tableName, String pkName)
 			throws Exception {
 		IObjectRegistry reg = ((InstanceManager) self_sqlje
 				.getInstanceManager()).getObjectRegistry();
@@ -142,7 +143,22 @@ public class SqlFlag {
 
 		OCManager ocm = (OCManager) reg.getInstanceOfType(OCManager.class);
 		insert.setReflectionMapper(ocm.getReflectionMapper());
-		insert.doInsert();
+		return insert.doInsert();
+	}
+
+	public int update(Object bean) throws Exception {
+		UpdateOperation uo = new UpdateOperation(self_sqlje.getSqlCallStack(),
+				bean);
+		uo.setSqlFlag(this);
+		return uo.doUpdate();
+	}
+
+	public int update(Map map, String tableName, String pkName)
+			throws Exception {
+		UpdateOperation uo = new UpdateOperation(self_sqlje.getSqlCallStack(),
+				map, tableName, pkName);
+		uo.setSqlFlag(this);
+		return uo.doUpdate();
 	}
 
 	public void delete(String tableName, String pkName, Object pk)
