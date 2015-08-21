@@ -129,6 +129,8 @@ public class InstanceManager implements IInstanceManager {
 			try {
 				String path = name.replace('.', '/') + ".class";
 				URL url = getResource(path);
+				if(url == null)
+					throw new ClassNotFoundException(name);
 				if ("file".equals(url.getProtocol())) {
 					File file = new File(url.getFile());
 					if (!file.exists())
